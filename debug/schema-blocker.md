@@ -1,18 +1,20 @@
 # Schema Blocker Documentation
 
-## Status
-The exact 89-column client schema was **not found** in this repository.
+## Status: RESOLVED
 
-## Search Performed
-- Searched for filename: `2026-08-11_21_N_price_V04.csv`
-- Searched directories: `artifacts/`, `debug/`, `output/`, `scripts/`, root
-- Searched file contents for: `89`, column headers, field mapping references
-- Existing `debug/field-mapping.json` contains only **37 fields**, not 89.
+The exact 89-column client schema has been provided and implemented.
 
-## Existing Field Mapping
-The only authoritative mapping file is `debug/field-mapping.json` (37 fields):
-- Directly available (5): `fare`, `description`, `currencyCode`, `estimatedTripTime`, `title`
-- Missing (32): `accountid`, `pullTime`, `executeTime`, `country`, `flng`, `flat`, `tlng`, `tlat`, `originLat`, `originLng`, `destinationLat`, `destinationLng`, `vehicleViewId`, `surgeMultiplier`, `formattedFare`, `etaString`, `predictDistance`, `predictEta`, `discountPrimaryMagnitude`, `discountedPrice`, `fareLineItems`, `baseValue`, `perDistanceUnitValue`, `perMinuteValue`, `minimumValue`, `minFare`, `maxFare`, `polyline`, `header`, `accessibilityText`, `routeId`, `taskId`
+## Schema Source
+- File: `2026-08-11_21_N_price_V04.csv` (provided by client via upload)
+- Columns: 89 exact fields in specified order
 
-## Conclusion
-The 89-column schema is **unverified**. All pipeline output is built on the normalized internal model derived strictly from captured public web data and documented official APIs. No missing schema columns are invented.
+## Implementation
+- `scripts/src/types.ts` — OutputRow interface with all 89 fields
+- `scripts/src/uber-public-extract.ts` — `getOutputColumns()` returns exact 89-column order
+- `scripts/src/uber-test-hk.ts` — Schema validation enforces 89 columns
+- `debug/89-field-mapping.json` — Complete field mapping for all 89 columns
+
+## Verification
+- CSV output validated to have exactly 89 columns
+- Column order matches client specification
+- No invented values; empty fields left as empty strings

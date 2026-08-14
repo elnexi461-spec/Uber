@@ -33,7 +33,8 @@ function walk(value: Json, fn: (node: Json) => void): void {
 }
 
 function str(value: Json): string | null {
-  return typeof value === "string" && value.length ? value : null;
+  if (typeof value !== "string") return null;
+  return value;
 }
 
 function num(value: Json): number | null {
@@ -71,7 +72,12 @@ function fareFromNode(node: { [key: string]: Json }): Fare | null {
   };
 }
 
-function productFromNode(node: { [key: string]: Json }, sourceFile: string, tierTitle: string | null): Product | null {
+function productFromNode(
+  node: { [key: string]: Json },
+  sourceFile: string,
+  tierTitle: string | null,
+  defaultVVID: string | null,
+): Product | null {
   const looksLikeProduct =
     ("productUuid" in node || "id" in node) &&
     ("description" in node || "displayName" in node || "fares" in node);
@@ -85,7 +91,7 @@ function productFromNode(node: { [key: string]: Json }, sourceFile: string, tier
     sourceFile,
     productId: str(node.id),
     productUuid: str(node.productUuid),
-    vehicleViewUuid: str(node.vehicleViewUuid),
+    vehicleViewUuid: str(node.vehicleViewUuid) ?? defaultVVID,
     description: str(node.description),
     displayName: str(node.displayName),
     detailedDescription: str(node.detailedDescription),
@@ -102,6 +108,7 @@ function productFromNode(node: { [key: string]: Json }, sourceFile: string, tier
     etaStringShort: str(node.etaStringShort),
     hasPromo: bool(node.hasPromo),
     hasRidePass: bool(node.hasRidePass),
+    preAdjustmentValue: str(node.preAdjustmentValue),
     fares: fares.length > 0 ? fares : null,
   };
 }
@@ -143,70 +150,224 @@ function deduplicateProducts(products: Product[]): Product[] {
   return Array.from(seen.values());
 }
 
-function productToOutputRow(product: Product, route: Route, navigation: Navigation | null): OutputRow {
+function getBeijingTime(date: Date): { hour: number; minute: number; weekday: number } {
+  const hkt = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  return {
+    hour: hkt.getUTCHours(),
+    minute: hkt.getUTCMinutes(),
+    weekday: hkt.getUTCDay(),
+  };
+}
+
+function productToOutputRow(
+  product: Product,
+  route: Route,
+  navigation: Navigation | null,
+  defaultVVID: string | null,
+  hourlyTiers: Json | null,
+  now: Date,
+): OutputRow {
   const firstFare = product.fares?.[0] ?? null;
+  const bj = getBeijingTime(now);
+  const pullTime = now.toISOString();
+  const executeTime = pullTime;
 
   return {
-    taskId: route.taskId,
-    routeId: null,
-    pullTime: null,
-    executeTime: null,
     accountid: null,
-    originLat: route.pickup.lat,
-    originLng: route.pickup.lng,
+    pullTime,
+    executeTime,
+    fare: firstFare?.fare ?? null,
+    description: product.description,
+    country: null,
+    bjHour: bj.hour,
+    bjMinute: bj.minute,
+    executeWeekday: bj.weekday,
+    dayType: null,
+    flng: route.pickup.lng,
+    flat: route.pickup.lat,
+    tlng: route.destination.lng,
+    tlat: route.destination.lat,
+    timeSeason: null,
+    batchId: null,
+    routeId: null,
+    taskId: route.taskId,
+    currencyCode: firstFare?.currencyCode ?? null,
     destinationLat: route.destination.lat,
     destinationLng: route.destination.lng,
-    flat: route.pickup.lat,
-    flng: route.pickup.lng,
-    tlat: route.destination.lat,
-    tlng: route.destination.lng,
-    productId: product.productId,
-    productUuid: product.productUuid,
-    vehicleViewId: product.vehicleViewUuid,
-    description: product.description,
-    displayName: product.displayName,
-    detailedDescription: product.detailedDescription,
-    title: product.tierTitle,
-    header: null,
-    accessibilityText: null,
-    available: product.available,
-    is3p: product.is3p,
-    productType: product.productType,
-    parentProductUuid: product.parentProductUuid,
-    cityId: product.cityId,
-    country: null,
-    imageUrl: product.imageUrl,
-    capacity: firstFare?.capacity ?? null,
-    fare: firstFare?.fare ?? null,
-    fareAmountE5: firstFare?.fareAmountE5 ?? null,
-    currencyCode: firstFare?.currencyCode ?? null,
+    originLat: route.pickup.lat,
+    originLng: route.pickup.lng,
+    baseFlng: null,
+    baseFlat: null,
+    baseTlng: null,
+    baseTlat: null,
+    vehicleViewId: product.vehicleViewUuid ?? defaultVVID,
+    surgeMultiplier: null,
+    unmodifiedDistance: navigation?.distanceMeters ?? null,
     formattedFare: null,
-    discountPrimary: firstFare?.discountPrimary ?? null,
-    discountPrimaryMagnitude: null,
-    discountedPrice: null,
-    hasPromo: firstFare?.hasPromo ?? product.hasPromo,
-    hasRidePass: firstFare?.hasRidePass ?? product.hasRidePass,
-    preAdjustmentValue: firstFare?.preAdjustmentValue ?? null,
-    fareLineItems: null,
+    accessibilityText: null,
+    defaultText: null,
+    pricingTemplatesDefaultText: null,
+    magnitude: null,
+    unit: null,
+    textDisplayed: null,
+    rankedSecondaryFareAccessibilityText: null,
+    styledPrimaryFareMagnitude: null,
+    styledPrimaryFareAccessibilityText: null,
+    hourlyTiers,
+    estimatedTripTime: product.estimatedTripTime,
+    estimateRequestTime: null,
+    etdDisplayString: null,
+    estimatedSoloOnTripTime: null,
+    packageVariantsVehicleViewId: null,
+    sortWeight: null,
+    vehicleViewsOrderStr: null,
+    defaultVehicleViewId: defaultVVID,
+    title: product.tierTitle,
+    preAdjustmentMagnitude: product.preAdjustmentValue ?? null,
+    adjustmentMagnitude: null,
+    postAdjustmentMagnitude: null,
+    discountPrimaryMagnitude: firstFare?.discountPrimary ?? null,
+    unmodifiedEta: navigation?.etaSeconds ?? null,
+    predictEta: null,
+    predictDistance: null,
+    predictHaversineDistance: null,
+    predictEstimatedOriginLatitude: null,
+    predictEstimatedOriginLongitude: null,
+    predictEstimatedDestinationLatitude: null,
+    predictEstimatedDestinationLongitude: null,
+    polyline: navigation?.polyline ?? null,
+    etaString: null,
+    etaStringShort: product.etaStringShort,
+    minEta: product.etaInMin,
+    averageEta: null,
     baseValue: null,
+    distanceUnit: null,
+    type: null,
     perDistanceUnitValue: null,
     perMinuteValue: null,
     minimumValue: null,
-    minFare: null,
+    cancellationValue: null,
+    safeRidesFeeValue: null,
+    perWaitMinuteValue: null,
+    allowFareEstimate: null,
+    allowedToSurge: null,
+    shouldFetchUpfrontFare: null,
+    upfrontPriceEnabled: null,
+    estimatedTolls: null,
+    fareLineItems: null,
     maxFare: null,
-    estimatedTripTime: product.estimatedTripTime,
-    etaString: null,
-    etaStringShort: product.etaStringShort,
-    etaInMin: product.etaInMin,
-    etaMax: product.etaMax,
-    predictDistance: null,
-    predictEta: null,
-    distanceMeters: navigation?.distanceMeters ?? null,
-    durationSeconds: navigation?.durationSeconds ?? null,
-    polyline: navigation?.polyline ?? null,
-    surgeMultiplier: null,
-    fareMeta: firstFare?.meta ?? null,
-    sourceFile: product.sourceFile,
+    minFare: null,
+    isFareLineSuccess: null,
+    fenceNameFrom: null,
+    discountedPrice: null,
+    header: null,
+    screenshotBase64: null,
+  };
+}
+
+export function getOutputColumns(): (keyof OutputRow)[] {
+  return [
+    "accountid", "pullTime", "executeTime", "fare", "description", "country",
+    "bjHour", "bjMinute", "executeWeekday", "dayType", "flng", "flat", "tlng", "tlat",
+    "timeSeason", "batchId", "routeId", "taskId", "currencyCode", "destinationLat",
+    "destinationLng", "originLat", "originLng", "baseFlng", "baseFlat", "baseTlng",
+    "baseTlat", "vehicleViewId", "surgeMultiplier", "unmodifiedDistance", "formattedFare",
+    "accessibilityText", "defaultText", "pricingTemplatesDefaultText", "magnitude", "unit",
+    "textDisplayed", "rankedSecondaryFareAccessibilityText", "styledPrimaryFareMagnitude",
+    "styledPrimaryFareAccessibilityText", "hourlyTiers", "estimatedTripTime", "estimateRequestTime",
+    "etdDisplayString", "estimatedSoloOnTripTime", "packageVariantsVehicleViewId", "sortWeight",
+    "vehicleViewsOrderStr", "defaultVehicleViewId", "title", "preAdjustmentMagnitude",
+    "adjustmentMagnitude", "postAdjustmentMagnitude", "discountPrimaryMagnitude", "unmodifiedEta",
+    "predictEta", "predictDistance", "predictHaversineDistance", "predictEstimatedOriginLatitude",
+    "predictEstimatedOriginLongitude", "predictEstimatedDestinationLatitude",
+    "predictEstimatedDestinationLongitude", "polyline", "etaString", "etaStringShort",
+    "minEta", "averageEta", "baseValue", "distanceUnit", "type", "perDistanceUnitValue",
+    "perMinuteValue", "minimumValue", "cancellationValue", "safeRidesFeeValue",
+    "perWaitMinuteValue", "allowFareEstimate", "allowedToSurge", "shouldFetchUpfrontFare",
+    "upfrontPriceEnabled", "estimatedTolls", "fareLineItems", "maxFare", "minFare",
+    "isFareLineSuccess", "fenceNameFrom", "discountedPrice", "header", "screenshotBase64",
+  ];
+}
+
+export async function extractFromResponses(
+  responseDir: string,
+  route: Route,
+): Promise<{
+  products: Product[];
+  navigation: Navigation | null;
+  rows: OutputRow[];
+  responseFiles: string[];
+  productResponseFiles: Array<{ file: string; productObjects: number }>;
+  defaultVVID: string | null;
+  hourlyTiers: Json | null;
+}> {
+  const files = (await readdir(responseDir)).filter((name) => name.endsWith(".json"));
+  const products: Product[] = [];
+  const responseSummary: Array<{ file: string; productObjects: number }> = [];
+  const parsedResponses: Array<{ file: string; json: Json }> = [];
+  let defaultVVID: string | null = null;
+  let hourlyTiers: Json | null = null;
+
+  for (const file of files) {
+    let parsed: Json;
+    try {
+      parsed = JSON.parse(await readFile(join(responseDir, file), "utf8")) as Json;
+      parsedResponses.push({ file, json: parsed });
+    } catch {
+      continue;
+    }
+
+    // Extract top-level products metadata
+    if (isObject(parsed) && isObject(parsed.data) && isObject(parsed.data.products)) {
+      const productsRoot = parsed.data.products as { [key: string]: Json };
+      if ("defaultVVID" in productsRoot) {
+        defaultVVID = str(productsRoot.defaultVVID);
+      }
+      if ("hourlyTiersWithMinimumFare" in productsRoot) {
+        hourlyTiers = productsRoot.hourlyTiersWithMinimumFare;
+      }
+    }
+
+    let count = 0;
+    walk(parsed, (node) => {
+      if (!isObject(node)) return;
+
+      if (Array.isArray(node.products) && "title" in node) {
+        const tierTitle = str(node.title);
+        for (const child of node.products) {
+          if (!isObject(child)) continue;
+          const product = productFromNode(child, file, tierTitle, defaultVVID);
+          if (product) {
+            count++;
+            products.push(product);
+          }
+        }
+        return;
+      }
+
+      const product = productFromNode(node, file, null, defaultVVID);
+      if (product) {
+        count++;
+        products.push(product);
+      }
+    });
+
+    if (count) responseSummary.push({ file, productObjects: count });
+  }
+
+  const navigation = extractNavigation(parsedResponses);
+  const deduped = deduplicateProducts(products);
+  const now = new Date();
+  const rows = deduped.map((p) => productToOutputRow(p, route, navigation, defaultVVID, hourlyTiers, now));
+
+  return {
+    products: deduped,
+    navigation,
+    rows,
+    responseFiles: files,
+    productResponseFiles: responseSummary,
+    defaultVVID,
+    hourlyTiers,
   };
 }
 
@@ -219,92 +380,11 @@ function csv(value: unknown): string {
   return text;
 }
 
-export function getOutputColumns(): (keyof OutputRow)[] {
-  return [
-    "taskId", "routeId", "pullTime", "executeTime", "accountid",
-    "originLat", "originLng", "destinationLat", "destinationLng",
-    "flat", "flng", "tlat", "tlng",
-    "productId", "productUuid", "vehicleViewId", "description", "displayName",
-    "detailedDescription", "title", "header", "accessibilityText",
-    "available", "is3p", "productType", "parentProductUuid", "cityId", "country", "imageUrl",
-    "capacity", "fare", "fareAmountE5", "currencyCode", "formattedFare",
-    "discountPrimary", "discountPrimaryMagnitude", "discountedPrice",
-    "hasPromo", "hasRidePass", "preAdjustmentValue",
-    "fareLineItems", "baseValue", "perDistanceUnitValue", "perMinuteValue",
-    "minimumValue", "minFare", "maxFare",
-    "estimatedTripTime", "etaString", "etaStringShort", "etaInMin", "etaMax",
-    "predictDistance", "predictEta",
-    "distanceMeters", "durationSeconds", "polyline",
-    "surgeMultiplier", "fareMeta", "sourceFile",
-  ];
-}
-
-export async function extractFromResponses(responseDir: string, route: Route): Promise<{
-  products: Product[];
-  navigation: Navigation | null;
-  rows: OutputRow[];
-  responseFiles: string[];
-  productResponseFiles: Array<{ file: string; productObjects: number }>;
-}> {
-  const files = (await readdir(responseDir)).filter((name) => name.endsWith(".json"));
-  const products: Product[] = [];
-  const responseSummary: Array<{ file: string; productObjects: number }> = [];
-  const parsedResponses: Array<{ file: string; json: Json }> = [];
-
-  for (const file of files) {
-    let parsed: Json;
-    try {
-      parsed = JSON.parse(await readFile(join(responseDir, file), "utf8")) as Json;
-      parsedResponses.push({ file, json: parsed });
-    } catch {
-      continue;
-    }
-
-    let count = 0;
-    walk(parsed, (node) => {
-      if (!isObject(node)) return;
-
-      if (Array.isArray(node.products) && "title" in node) {
-        const tierTitle = str(node.title);
-        for (const child of node.products) {
-          if (!isObject(child)) continue;
-          const product = productFromNode(child, file, tierTitle);
-          if (product) {
-            count++;
-            products.push(product);
-          }
-        }
-        return;
-      }
-
-      const product = productFromNode(node, file, null);
-      if (product) {
-        count++;
-        products.push(product);
-      }
-    });
-
-    if (count) responseSummary.push({ file, productObjects: count });
-  }
-
-  const navigation = extractNavigation(parsedResponses);
-  const deduped = deduplicateProducts(products);
-  const rows = deduped.map((p) => productToOutputRow(p, route, navigation));
-
-  return {
-    products: deduped,
-    navigation,
-    rows,
-    responseFiles: files,
-    productResponseFiles: responseSummary,
-  };
-}
-
 async function main(): Promise<void> {
   await mkdir(OUTPUT_DIR, { recursive: true });
   await mkdir(DEBUG_DIR, { recursive: true });
 
-  const { products, navigation, rows, responseFiles, productResponseFiles } =
+  const { products, navigation, rows, responseFiles, productResponseFiles, defaultVVID, hourlyTiers } =
     await extractFromResponses(RESPONSE_DIR, ROUTE);
 
   const columns = getOutputColumns();
@@ -318,7 +398,7 @@ async function main(): Promise<void> {
 
   await writeFile(
     join(OUTPUT_DIR, "public-products.json"),
-    JSON.stringify({ route: ROUTE, navigation, products, rows }, null, 2) + "\n",
+    JSON.stringify({ route: ROUTE, navigation, products, rows, defaultVVID, hourlyTiers }, null, 2) + "\n",
     "utf8",
   );
 
@@ -338,6 +418,8 @@ async function main(): Promise<void> {
         productsWithCurrency: currencyRows.length,
         navigationAvailable: navAvailable,
         navigation,
+        defaultVVID,
+        hourlyTiers,
         products: products.map((r) => ({
           sourceFile: r.sourceFile,
           productId: r.productId,
