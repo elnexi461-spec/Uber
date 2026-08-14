@@ -17,6 +17,9 @@ const OUTPUT_DIR = join(process.cwd(), "debug");
 const RESPONSE_DIR = join(OUTPUT_DIR, "uber-responses");
 const LOG_PATH = join(OUTPUT_DIR, "network-log.json");
 const ROUTE = {
+  taskId: "hk_202606192058594097",
+  pickupName: "沙田醫院",
+  destinationName: "南方花園",
   pickup: "22.395771,114.217333",
   destination: "22.325528,114.190810",
 };
@@ -268,8 +271,11 @@ async function waitForManualInteraction(): Promise<void> {
   const readline = createInterface({ input, output });
   try {
     console.log("\nBrowser is open for manual interaction.");
-    console.log(`Enter pickup: ${ROUTE.pickup}`);
-    console.log(`Enter destination: ${ROUTE.destination}`);
+    console.log(`Task: ${ROUTE.taskId}`);
+    console.log(`Enter pickup: ${ROUTE.pickupName} (${ROUTE.pickup})`);
+    console.log(
+      `Enter destination: ${ROUTE.destinationName} (${ROUTE.destination})`,
+    );
     console.log('Complete the normal flow and click "See prices".');
     await readline.question(
       "\nWhen the price results are visible, press Enter to print the candidate summary and flush the log.",
