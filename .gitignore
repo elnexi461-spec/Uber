@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Runtime network/session captures — never commit these
+/debug/network-log.json
+/debug/uber-responses/
