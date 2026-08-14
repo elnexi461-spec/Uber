@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
-    "uber-diagnostic": "tsx ./src/uber-diagnostic.ts",
+    "uber-diagnostic": "tsx ./src/uber-autonomous.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
