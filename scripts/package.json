@@ -7,6 +7,7 @@
     "hello": "tsx ./src/hello.ts",
     "uber-diagnostic": "tsx ./src/uber-autonomous.ts",
     "uber-extract": "tsx ./src/uber-public-extract.ts",
+    "uber-estimates": "tsx ./src/uber-estimates-api.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
