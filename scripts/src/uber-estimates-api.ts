@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { acquireAccessToken } from "./uber-auth.js";
 import type { OfficialEstimate } from "./types.js";
 
 const API_URL = "https://api.uber.com/v1/guests/trips/estimates";
@@ -8,21 +9,11 @@ const OUTPUT_DIR = join(process.cwd(), "output");
 const pickup = { latitude: 22.395771, longitude: 114.217333 };
 const dropoff = { latitude: 22.325528, longitude: 114.19081 };
 
-function requireToken(): string {
-  const token = process.env.UBER_ACCESS_TOKEN?.trim();
-  if (!token) {
-    throw new Error(
-      "UBER_ACCESS_TOKEN is required. This adapter only uses Uber's documented Guest Rides Estimates API and never attempts to obtain or bypass credentials.",
-    );
-  }
-  return token;
-}
-
 function csv(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = typeof value === "object" ? JSON.stringify(value) : String(value);
   if (/[",\n\r]/.test(text)) {
-    return `"${text.replaceAll('"', '""')}"`;
+    return `\"${text.replaceAll('"', '""')}\"`;
   }
   return text;
 }
@@ -37,8 +28,13 @@ interface UberEstimateResponse {
   }>;
 }
 
-async function main(): Promise<void> {
-  const token = requireToken();
+export async function fetchEstimates(): Promise<{
+  estimates: OfficialEstimate[];
+  raw: unknown;
+  faresUnavailable: boolean;
+  etasUnavailable: boolean;
+}> {
+  const token = await acquireAccessToken();
 
   const response = await fetch(API_URL, {
     method: "POST",
@@ -61,15 +57,9 @@ async function main(): Promise<void> {
     throw new Error(`Uber Estimates API returned ${response.status}: ${JSON.stringify(payload)}`);
   }
 
-  await writeFile(
-    join(OUTPUT_DIR, "official-estimates.json"),
-    JSON.stringify(payload, null, 2) + "\n",
-    "utf8",
-  );
-
   const body = payload as UberEstimateResponse;
 
-  const rows: OfficialEstimate[] = (body.product_estimates ?? []).map((item) => {
+  const estimates: OfficialEstimate[] = (body.product_estimates ?? []).map((item) => {
     const product = (item.product ?? {}) as Record<string, unknown>;
     const estimate = (item.estimate_info ?? {}) as Record<string, unknown>;
     const fare = (estimate.fare ?? {}) as Record<string, unknown>;
@@ -99,6 +89,23 @@ async function main(): Promise<void> {
     };
   });
 
+  return {
+    estimates,
+    raw: payload,
+    faresUnavailable: Boolean(body.fares_unavailable),
+    etasUnavailable: Boolean(body.etas_unavailable),
+  };
+}
+
+async function main(): Promise<void> {
+  const { estimates, raw, faresUnavailable, etasUnavailable } = await fetchEstimates();
+
+  await writeFile(
+    join(OUTPUT_DIR, "official-estimates.json"),
+    JSON.stringify(raw, null, 2) + "\n",
+    "utf8",
+  );
+
   const columns: (keyof OfficialEstimate)[] = [
     "productId", "vehicleViewId", "displayName", "description", "capacity",
     "upfrontFareEnabled", "currencyCode", "fareDisplay", "fareLow", "fareHigh",
@@ -109,7 +116,7 @@ async function main(): Promise<void> {
 
   const csvLines = [
     columns.join(","),
-    ...rows.map((row) => columns.map((key) => csv(row[key])).join(",")),
+    ...estimates.map((row) => columns.map((key) => csv(row[key])).join(",")),
   ];
 
   await writeFile(
@@ -118,9 +125,9 @@ async function main(): Promise<void> {
     "utf8",
   );
 
-  console.log(`Products returned: ${rows.length}`);
-  console.log(`Fares unavailable: ${Boolean(body.fares_unavailable)}`);
-  console.log(`ETAs unavailable: ${Boolean(body.etas_unavailable)}`);
+  console.log(`Products returned: ${estimates.length}`);
+  console.log(`Fares unavailable: ${faresUnavailable}`);
+  console.log(`ETAs unavailable: ${etasUnavailable}`);
   console.log(`Wrote ${join(OUTPUT_DIR, "official-estimates.json")}`);
   console.log(`Wrote ${join(OUTPUT_DIR, "official-estimates.csv")}`);
 }

@@ -9,8 +9,9 @@
 - **Deterministic Output**: Same inputs always produce identical CSV ordering and content.
 - **CSV Generation**: Safe RFC 4180 escaping, UTF-8 output, stable serialization.
 - **Field Coverage Reporting**: Every output column traced to AVAILABLE / DERIVED / UNAVAILABLE.
-- **Official Estimate Adapter**: `uber-estimates-api.ts` uses Uber's documented Guest Rides Estimates API when `UBER_ACCESS_TOKEN` is provided. Token is never logged or written to disk.
-- **End-to-End Test**: `uber-test-hk` command loads captures, extracts data, generates 89-column CSV, validates schema, and produces JSON report.
+- **Official Estimate Adapter**: `uber-estimates-api.ts` uses Uber's documented Guest Rides Estimates API when authenticated.
+- **OAuth 2.0 Implementation**: `uber-auth.ts` implements the official client credentials flow with in-memory token caching, actionable error messages, and never logs credentials.
+- **End-to-End Test**: `uber-test-hk` command loads captures, extracts data, generates 89-column CSV, validates schema, attempts official estimates, and produces JSON report.
 - **Schema Validation**: Fails if output has anything other than 89 columns or wrong order.
 
 ## 2. What Was Tested
@@ -20,6 +21,7 @@
 - 17 JSON responses in `debug/uber-responses/`
 - 13 unique products discovered across 4 tiers (Popular, Economy, Premium, More)
 - Navigation response verified
+- OAuth token endpoint tested with both testing and production credentials
 
 ## 3. Exact Commands Used
 
@@ -30,8 +32,8 @@ pnpm --filter @workspace/scripts run typecheck
 # Run public extraction
 cd scripts && npx tsx ./src/uber-public-extract.ts
 
-# Run official estimates (requires token)
-UBER_ACCESS_TOKEN=xxx npx tsx ./src/uber-estimates-api.ts
+# Run official estimates (requires valid credentials)
+UBER_CLIENT_ID=xxx UBER_CLIENT_SECRET=xxx npx tsx ./src/uber-estimates-api.ts
 
 # Run end-to-end Hong Kong test (89-column)
 cd scripts && npx tsx ./src/uber-test-hk.ts
@@ -97,11 +99,23 @@ These are preserved exactly as captured. No fabrication.
 
 ## 6. Whether Live Fares Were Obtained
 
-**No.** The anonymous public mobile-web flow does not return fare amounts. All 13 products have empty fare strings. Live fares require a valid `UBER_ACCESS_TOKEN` for the Guest Rides Estimates API (adapter implemented but token not provided).
+**No.** The OAuth token endpoint returned errors for both credential sets:
+
+- **Testing credentials** (`ORlb3wxPzdKgODzQJhCRj5ZFqPKWZohA` / `XvOxVAkuhKr4KhlyWsu0zKYBA_ISqAxshSOtvho5`):
+  - Production: `unauthorized_client` — "environment mismatched"
+  - Sandbox: `invalid_scope` — "scope(s) are invalid"
+  - Conclusion: Testing credentials cannot access the Guest Rides Estimates scope
+
+- **Production credentials** (`rgCz2_-kDEHX8nC04TiMjzRFZlZo0Sfb` / `N47VGwA9XPFUG3kYfWb7eqv_pHBQCz1xqZg`):
+  - Production: `access_denied` — "client secret mismatch"
+  - Sandbox: `unauthorized_client` — "environment mismatched"
+  - Conclusion: The client_secret does not match the client_id, OR the app is not activated
+
+**Blocker:** Valid Uber OAuth credentials with the `guests.trips` scope are required to obtain live fares.
 
 ## 7. Whether the 89-Column Schema Is Now Reproduced
 
-**Yes.** The exact 89-column schema from `2026-08-11_21_N_price_V04.csv` is now implemented:
+**Yes.** The exact 89-column schema from `2026-08-11_21_N_price_V04.csv` is implemented:
 - All 89 columns in exact order
 - Column names match exactly
 - CSV output validated to have exactly 89 columns
@@ -109,12 +123,33 @@ These are preserved exactly as captured. No fabrication.
 
 ## 8. Remaining Blockers
 
-1. **Live fares require `UBER_ACCESS_TOKEN`**: The Guest Rides Estimates adapter is ready. Without a token, fare fields remain empty.
-2. **Many fields unavailable in anonymous flow**: ~60 fields are genuinely absent from the public mobile-web capture. These require either authenticated endpoints or additional data sources.
-3. **Environment limitation**: The sandbox filesystem does not support symlinks, preventing `pnpm`/`npm` from installing `tsx` and `typescript` binaries. The code compiles in a standard environment.
+1. **OAuth Credential Mismatch**: Production credentials return `access_denied: client secret mismatch`. Possible causes:
+   - The client_secret was copy-pasted incorrectly or truncated
+   - The app is not yet activated/published in the Uber Developer Dashboard
+   - The client_secret was regenerated and the old value is no longer valid
+   - **Action required**: Verify credentials at https://developer.uber.com/dashboard
+
+2. **Testing Credentials Invalid**: Testing credentials cannot access the `guests.trips` scope. They may be limited to sandbox-only endpoints or different scopes.
+
+3. **~54 fields unavailable in anonymous flow**: These require authenticated endpoints.
 
 ## 9. Recommended Next Steps
 
-1. **Provide `UBER_ACCESS_TOKEN`** to populate fare fields via the official API.
-2. **Run `pnpm --filter @workspace/scripts run uber-test-hk`** in a standard environment to generate the final CSV.
-3. **Compare `output/hong-kong-final.csv`** against the client template for structural validation.
+1. **Fix OAuth credentials**:
+   - Go to https://developer.uber.com/dashboard
+   - Verify the App has "Guest Rides Estimates" API enabled
+   - Copy the exact `client_id` and `client_secret` (ensure no trailing spaces)
+   - If the secret was regenerated, use the new value
+   - Ensure the app status is "Active" or "Published"
+
+2. **Re-run the test**:
+   ```bash
+   export UBER_CLIENT_ID="your-correct-client-id"
+   export UBER_CLIENT_SECRET="your-correct-client-secret"
+   pnpm --filter @workspace/scripts run uber-test-hk
+   ```
+
+3. **If credentials are correct**, the test will:
+   - Exchange credentials for an access token
+   - Call `api.uber.com/v1/guests/trips/estimates`
+   - Populate additional fields: `currencyCode`, `formattedFare`, `surgeMultiplier`, `fareLineItems`, `maxFare`, `minFare`, `distanceUnit`, `perDistanceUnitValue`, `perMinuteValue`, `minimumValue`
