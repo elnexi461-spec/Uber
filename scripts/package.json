@@ -8,11 +8,13 @@
     "uber-diagnostic": "tsx ./src/uber-autonomous.ts",
     "uber-extract": "tsx ./src/uber-public-extract.ts",
     "uber-estimates": "tsx ./src/uber-estimates-api.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "uber-test-hk": "tsx ./src/uber-test-hk.ts",
+    "test": "node --test ./src/__tests__/*.test.ts"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
-    "tsx": "catalog:"
+    "@types/node": "^20.0.0",
+    "tsx": "^4.21.0"
   },
   "dependencies": {
     "playwright": "^1.62.1"

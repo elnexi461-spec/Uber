@@ -1,5 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { OfficialEstimate } from "./types.js";
 
 const API_URL = "https://api.uber.com/v1/guests/trips/estimates";
 const OUTPUT_DIR = join(process.cwd(), "output");
@@ -20,7 +21,20 @@ function requireToken(): string {
 function csv(value: unknown): string {
   if (value === null || value === undefined) return "";
   const text = typeof value === "object" ? JSON.stringify(value) : String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  if (/[",\n\r]/.test(text)) {
+    return `"${text.replaceAll('"', '""')}"`;
+  }
+  return text;
+}
+
+interface UberEstimateResponse {
+  fares_unavailable?: boolean;
+  etas_unavailable?: boolean;
+  product_estimates?: Array<{
+    product?: Record<string, unknown>;
+    estimate_info?: Record<string, unknown>;
+    fulfillment_indicator?: string;
+  }>;
 }
 
 async function main(): Promise<void> {
@@ -53,79 +67,54 @@ async function main(): Promise<void> {
     "utf8",
   );
 
-  const body = payload as {
-    fares_unavailable?: boolean;
-    etas_unavailable?: boolean;
-    product_estimates?: Array<{
-      product?: Record<string, unknown>;
-      estimate_info?: Record<string, unknown>;
-      fulfillment_indicator?: string;
-    }>;
-  };
+  const body = payload as UberEstimateResponse;
 
-  const rows = (body.product_estimates ?? []).map((item) => {
-    const product = item.product ?? {};
-    const estimate = item.estimate_info ?? {};
+  const rows: OfficialEstimate[] = (body.product_estimates ?? []).map((item) => {
+    const product = (item.product ?? {}) as Record<string, unknown>;
+    const estimate = (item.estimate_info ?? {}) as Record<string, unknown>;
     const fare = (estimate.fare ?? {}) as Record<string, unknown>;
     const estimateRange = (estimate.estimate ?? {}) as Record<string, unknown>;
     const trip = (estimate.trip ?? {}) as Record<string, unknown>;
 
     return {
-      pickup_lat: pickup.latitude,
-      pickup_lng: pickup.longitude,
-      dropoff_lat: dropoff.latitude,
-      dropoff_lng: dropoff.longitude,
-      product_id: product.product_id ?? "",
-      vehicle_view_id: product.vehicle_view_id ?? "",
-      display_name: product.display_name ?? "",
-      description: product.description ?? "",
-      capacity: product.capacity ?? "",
-      upfront_fare_enabled: product.upfront_fare_enabled ?? "",
-      currency_code: fare.currency_code ?? estimateRange.currency_code ?? "",
-      fare_display: fare.display ?? estimateRange.display ?? "",
-      fare_low: estimateRange.low_estimate ?? "",
-      fare_high: estimateRange.high_estimate ?? "",
-      fare_id: estimate.fare_id ?? "",
-      pickup_estimate: estimate.pickup_estimate ?? "",
-      distance_unit: trip.distance_unit ?? "",
-      distance_estimate: trip.distance_estimate ?? "",
-      travel_distance_estimate: trip.travel_distance_estimate ?? "",
-      duration_estimate: trip.duration_estimate ?? "",
-      fare_breakdown: fare.fare_breakdown ?? "",
-      surge_multiplier: fare.surge_multiplier ?? "",
-      fulfillment_indicator: item.fulfillment_indicator ?? "",
+      productId: String(product.product_id ?? ""),
+      vehicleViewId: String(product.vehicle_view_id ?? ""),
+      displayName: String(product.display_name ?? ""),
+      description: String(product.description ?? ""),
+      capacity: String(product.capacity ?? ""),
+      upfrontFareEnabled: String(product.upfront_fare_enabled ?? ""),
+      currencyCode: String(fare.currency_code ?? estimateRange.currency_code ?? ""),
+      fareDisplay: String(fare.display ?? estimateRange.display ?? ""),
+      fareLow: String(estimateRange.low_estimate ?? ""),
+      fareHigh: String(estimateRange.high_estimate ?? ""),
+      fareId: String(estimate.fare_id ?? ""),
+      pickupEstimate: String(estimate.pickup_estimate ?? ""),
+      distanceUnit: String(trip.distance_unit ?? ""),
+      distanceEstimate: String(trip.distance_estimate ?? ""),
+      travelDistanceEstimate: String(trip.travel_distance_estimate ?? ""),
+      durationEstimate: String(trip.duration_estimate ?? ""),
+      fareBreakdown: fare.fare_breakdown ?? null,
+      surgeMultiplier: String(fare.surge_multiplier ?? ""),
+      fulfillmentIndicator: String(item.fulfillment_indicator ?? ""),
     };
   });
 
-  const columns = Object.keys(rows[0] ?? {
-    pickup_lat: "",
-    pickup_lng: "",
-    dropoff_lat: "",
-    dropoff_lng: "",
-    product_id: "",
-    vehicle_view_id: "",
-    display_name: "",
-    description: "",
-    capacity: "",
-    upfront_fare_enabled: "",
-    currency_code: "",
-    fare_display: "",
-    fare_low: "",
-    fare_high: "",
-    fare_id: "",
-    pickup_estimate: "",
-    distance_unit: "",
-    distance_estimate: "",
-    travel_distance_estimate: "",
-    duration_estimate: "",
-    fare_breakdown: "",
-    surge_multiplier: "",
-    fulfillment_indicator: "",
-  });
+  const columns: (keyof OfficialEstimate)[] = [
+    "productId", "vehicleViewId", "displayName", "description", "capacity",
+    "upfrontFareEnabled", "currencyCode", "fareDisplay", "fareLow", "fareHigh",
+    "fareId", "pickupEstimate", "distanceUnit", "distanceEstimate",
+    "travelDistanceEstimate", "durationEstimate", "fareBreakdown",
+    "surgeMultiplier", "fulfillmentIndicator",
+  ];
+
+  const csvLines = [
+    columns.join(","),
+    ...rows.map((row) => columns.map((key) => csv(row[key])).join(",")),
+  ];
 
   await writeFile(
     join(OUTPUT_DIR, "official-estimates.csv"),
-    [columns.join(","), ...rows.map((row) => columns.map((key) => csv(row[key as keyof typeof row])).join(","))].join("\n") + "\n",
+    csvLines.join("\n") + "\n",
     "utf8",
   );
 
