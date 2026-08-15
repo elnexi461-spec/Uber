@@ -64,3 +64,6 @@ Thumbs.db
 /debug/monitor-cache.json
 /debug/monitor-metrics.json
 /debug/uber-responses/batch/
+
+# Dashboard routes input (transient)
+/debug/monitor-routes-input.json
