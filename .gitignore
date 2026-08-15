@@ -51,3 +51,8 @@ Thumbs.db
 # Runtime network/session captures — never commit these
 /debug/network-log.json
 /debug/uber-responses/
+/debug/uber-auth-state.json
+/debug/uber-fares.json
+/debug/uber-ride-selection.png
+/debug/89-field-coverage.json
+/debug/hong-kong-report.json

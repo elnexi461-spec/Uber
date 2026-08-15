@@ -10,6 +10,8 @@
     "uber-estimates": "tsx ./src/uber-estimates-api.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "uber-test-hk": "tsx ./src/uber-test-hk.ts",
+    "uber-fare-login": "tsx ./src/uber-fare-extract.ts --login",
+    "uber-fare-extract": "tsx ./src/uber-fare-extract.ts",
     "test": "node --test ./src/__tests__/*.test.ts"
   },
   "devDependencies": {
