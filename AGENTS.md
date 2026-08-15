@@ -108,3 +108,20 @@ Test batch results (2026-08-15):
 - 2 distinct routes: route_a done (13 fares), route_b failed after 2 attempts
   (airport route has no upfront fares) — retry+backoff exercised, no fabrication.
 - All extracted fares match known manual fares within 5%.
+
+## Production dashboard + API (scripts/src/server.ts)
+Zero-new-dependency Node.js HTTP server reusing existing extraction engine.
+- Serves static dashboard (`dashboard/`: index.html, app.js, styles.css) with 6 views:
+  Dashboard, Routes, Prices, Jobs, Verification, Exports
+- API endpoints (minimal, connecting UI to existing job system):
+  GET /api/health, /api/dashboard, /api/routes, /api/prices, /api/jobs,
+  POST /api/jobs/run (spawns uber-monitor.ts child process),
+  GET /api/verification, /api/exports, /api/exports/download?file=, /api/monitor/log
+- Reads existing output files (public-products.json/csv, monitor-*.json, uber-fares.json)
+- Triggers batch runs via the existing uber-monitor.ts (no extraction engine changes)
+- Railway-compatible: nixpacks.toml (Node + Playwright + Chromium), binds $PORT
+- Security: never reads/serves uber-auth-state.json; path-traversal protection on downloads
+- Run: `PORT=3000 npx tsx ./src/server.ts` (from scripts/)
+- npm: `pnpm server` or `pnpm start`
+- Tested locally: all 6 views populate, all 9 endpoints return real data,
+  batch-run triggers monitor, 89-col CSV downloads with 89 columns, auth-state blocked (403).

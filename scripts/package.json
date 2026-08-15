@@ -13,6 +13,8 @@
     "uber-fare-login": "tsx ./src/uber-fare-extract.ts --login",
     "uber-fare-extract": "tsx ./src/uber-fare-extract.ts",
     "uber-monitor": "tsx ./src/uber-monitor.ts",
+    "server": "tsx ./src/server.ts",
+    "start": "tsx ./src/server.ts",
     "test": "node --test ./src/__tests__/*.test.ts"
   },
   "devDependencies": {

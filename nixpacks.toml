@@ -1,0 +1,48 @@
+# Railway-compatible build & run config for the Uber fare dashboard.
+# Runtime: Node.js + Playwright + Chromium (headless-capable).
+# The server is a zero-dependency Node http server (scripts/src/server.ts)
+# that reuses the existing Playwright extraction engine and 89-col pipeline.
+
+[phases.setup]
+# Chromium runtime deps for Playwright (headless on Railway).
+aptPkgs = [
+  "libnss3",
+  "libnspr4",
+  "libatk1.0-0",
+  "libatk-bridge2.0-0",
+  "libcups2",
+  "libdrm2",
+  "libdbus-1-3",
+  "libxkbcommon0",
+  "libx11-6",
+  "libxcomposite1",
+  "libxdamage1",
+  "libxext6",
+  "libxfixes3",
+  "libxrandr2",
+  "libgbm1",
+  "libpango-1.0-0",
+  "libcairo2",
+  "libasound2",
+  "libatspi2.0-0",
+  "libxshmfence1",
+]
+
+[phases.install]
+# The repo uses pnpm workspaces; install the scripts package (Playwright + tsx).
+cmds = ["corepack enable", "corepack prepare pnpm@latest --activate", "pnpm install --frozen-lockfile"]
+onlyIncludeFiles = ["/scripts/package.json", "/scripts/tsconfig.json", "/pnpm-lock.yaml", "/pnpm-workspace.yaml", "/package.json"]
+
+[phases.build]
+# Playwright browsers are installed by the scripts package postinstall.
+# Re-run here to be safe in the Railway build environment.
+cmds = ["cd scripts && npx playwright install chromium"]
+
+[start]
+cmd = "cd scripts && npx tsx ./src/server.ts"
+
+[variables]
+# Railway injects PORT automatically; the server binds to $PORT (default 3000).
+# Display is set so Playwright can launch headless Chromium on Linux.
+DISPLAY = ":99"
+PLAYWRIGHT_BROWSERS_PATH = "0"
