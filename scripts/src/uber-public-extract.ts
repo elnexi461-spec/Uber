@@ -109,6 +109,7 @@ function productFromNode(
     hasPromo: bool(node.hasPromo),
     hasRidePass: bool(node.hasRidePass),
     preAdjustmentValue: str(node.preAdjustmentValue),
+    currencyCode: str(node.currencyCode),
     fares: fares.length > 0 ? fares : null,
   };
 }
@@ -140,12 +141,20 @@ function extractNavigation(responses: Array<{ file: string; json: Json }>): Navi
 }
 
 function deduplicateProducts(products: Product[]): Product[] {
+  // Prefer the product variant that has a non-empty fare when the same
+  // productUuid appears across multiple response files (e.g. a guest/anonymous
+  // response with empty fares vs an authenticated response with real fares).
   const seen = new Map<string, Product>();
   for (const p of products) {
     const key = p.productUuid ?? `${p.productId}:${p.displayName ?? "unknown"}`;
-    if (!seen.has(key)) {
+    const existing = seen.get(key);
+    if (!existing) {
       seen.set(key, p);
+      continue;
     }
+    const pHasFare = (p.fares?.[0]?.fare ?? "") !== "" || p.fares?.[0]?.fareAmountE5 != null;
+    const exHasFare = (existing.fares?.[0]?.fare ?? "") !== "" || existing.fares?.[0]?.fareAmountE5 != null;
+    if (pHasFare && !exHasFare) seen.set(key, p);
   }
   return Array.from(seen.values());
 }
@@ -191,7 +200,7 @@ function productToOutputRow(
     batchId: null,
     routeId: null,
     taskId: route.taskId,
-    currencyCode: firstFare?.currencyCode ?? null,
+    currencyCode: firstFare?.currencyCode ?? product.currencyCode ?? null,
     destinationLat: route.destination.lat,
     destinationLng: route.destination.lng,
     originLat: route.pickup.lat,
@@ -431,7 +440,7 @@ async function main(): Promise<void> {
           available: r.available,
           fare: r.fares?.[0]?.fare ?? null,
           fareAmountE5: r.fares?.[0]?.fareAmountE5 ?? null,
-          currencyCode: r.fares?.[0]?.currencyCode ?? null,
+          currencyCode: r.fares?.[0]?.currencyCode ?? r.currencyCode ?? null,
           hasPromo: r.fares?.[0]?.hasPromo ?? null,
           tierTitle: r.tierTitle,
         })),

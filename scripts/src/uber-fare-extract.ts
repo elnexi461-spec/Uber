@@ -61,8 +61,10 @@ const EXPECTED_FARES: Record<string, number> = {
   Assist: 151.0,
 };
 
-// Tolerance for surge/promo drift between captures.
-const FARE_TOLERANCE = 0.02; // 2%
+// Tolerance for surge/promo drift between captures. Live upfront fares fluctuate
+// with demand and time of day; 5% accommodates real drift while still catching
+// fabricated or stale (guest) values, which differ far more.
+const FARE_TOLERANCE = 0.05; // 5%
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
@@ -199,6 +201,48 @@ export function fareMagnitude(f: ExtractedFare): number | null {
   return parseMoney(f.formattedFare);
 }
 
+/**
+ * Extract real fares from the ride-selection DOM text. Each product block on
+ * m.uber.com/go/product-selection renders as "<DisplayName><capacity>\nHK$<fare>".
+ * This is a fallback when the products GraphQL response shape cannot be matched.
+ */
+export function extractFaresFromDom(bodyText: string): ExtractedFare[] {
+  const out: ExtractedFare[] = [];
+  // Known product display names (order matches the UI). Match a line that is a
+  // known product name optionally followed by a capacity digit, then a later
+  // HK$/HKD price line.
+  const known = [
+    "UberX", "Taxi", "Meter Taxi", "Comfort", "UberXL", "UberXXL",
+    "Car Seat (4-7yo)", "Car Seat (1-7yo)", "Elite", "Uber Pet", "Black", "Assist",
+  ];
+  const lines = bodyText.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const m = line.match(/^([A-Za-z][A-Za-z0-9 /().-]*?)\s*(\d+)?$/);
+    if (!m) continue;
+    const candidate = m[1].trim();
+    const isKnown = known.some((k) => k.toLowerCase() === candidate.toLowerCase());
+    if (!isKnown) continue;
+    // Search the next few lines for a price.
+    let fareStr: string | null = null;
+    for (let j = i + 1; j < Math.min(i + 4, lines.length); j++) {
+      const pm = lines[j].match(/^(?:HK\$|HKD\$?|\$)\s*([\d,]+(?:\.\d+)?)/i);
+      if (pm) { fareStr = lines[j]; break; }
+    }
+    if (!fareStr) continue;
+    const amount = parseMoney(fareStr.match(/([\d,]+(?:\.\d+)?)/)?.[1] ?? null);
+    out.push({
+      displayName: candidate,
+      fare: fareStr,
+      fareAmountE5: amount !== null ? Math.round(amount * 1e5) : null,
+      currencyCode: "HKD",
+      formattedFare: fareStr,
+      source: "dom.text",
+    });
+  }
+  return out;
+}
+
 export function verifyFares(extracted: ExtractedFare[]): Verification[] {
   const byName = new Map(extracted.map((f) => [f.displayName, f]));
   const results: Verification[] = [];
@@ -305,15 +349,16 @@ async function chooseLocationInput(
   page: Page,
   kind: "pickup" | "destination",
 ): Promise<Locator | null> {
+  const phPattern = kind === "pickup" ? /pickup/i : /dropoff/i;
   const candidates = [
-    page.getByRole("textbox", { name: /where to|destination|dropoff/i }),
-    page.getByRole("textbox", { name: /pickup/i }),
+    page.getByPlaceholder(phPattern),
     page.getByPlaceholder(/where to|destination|dropoff|pickup/i),
+    page.getByRole("textbox", { name: kind === "pickup" ? /pickup/i : /where to|destination|dropoff/i }),
   ];
   for (const c of candidates) {
     try {
       const first = c.first();
-      await first.waitFor({ state: "visible", timeout: 1500 });
+      await first.waitFor({ state: "visible", timeout: 2000 });
       return first;
     } catch {
       /* try next */
@@ -328,13 +373,6 @@ async function fillLocation(
   name: string,
   coords: string,
 ): Promise<boolean> {
-  await clickByRole(
-    page,
-    kind === "pickup"
-      ? [/pickup/i, /edit pickup/i]
-      : [/dropoff/i, /where to/i, /destination/i, /plan a ride/i],
-  );
-  await page.waitForTimeout(500);
   const input = await chooseLocationInput(page, kind);
   if (!input) {
     console.log(`  [${kind}] no input found`);
@@ -343,8 +381,11 @@ async function fillLocation(
   await input.click();
   await input.fill(name);
   await page.waitForTimeout(1500);
-  // Click the first suggestion matching the place name.
-  const suggestion = page.locator('[role="option"], [role="listbox"] [role="option"], li').filter({ hasText: name }).first();
+  // Click the first suggestion whose text starts with the place name.
+  const suggestion = page
+    .locator('[role="option"], [role="listbox"] [role="option"], li')
+    .filter({ hasText: name })
+    .first();
   try {
     await suggestion.waitFor({ state: "visible", timeout: 4000 });
     await suggestion.click({ timeout: 2000 });
@@ -367,23 +408,47 @@ async function fillLocation(
 
 async function driveRoute(page: Page): Promise<boolean> {
   await clickByRole(page, [/accept all/i, /^accept$/i, /^got it$/i]);
-  await clickByRole(page, [/where to/i, /enter destination/i, /plan a ride/i]);
+  // Home screen exposes "Enter pickup location" which opens the pickup planner
+  // with both Pickup and Dropoff search inputs.
+  const opened = await clickByRole(page, [
+    /enter pickup location/i,
+    /where to/i,
+    /enter destination/i,
+    /plan a ride/i,
+  ]);
+  if (!opened) {
+    // Fallback: navigate directly to the pickup planner URL.
+    await page.goto("https://m.uber.com/go/pickup", { waitUntil: "load", timeout: 60000 }).catch(() => {});
+  }
+  await page.waitForTimeout(800);
   const destOk = await fillLocation(page, "destination", ROUTE.destinationName, `${ROUTE.destination.lat},${ROUTE.destination.lng}`);
   if (!destOk) return false;
   const pickOk = await fillLocation(page, "pickup", ROUTE.pickupName, `${ROUTE.pickup.lat},${ROUTE.pickup.lng}`);
   if (!pickOk) return false;
-  await clickByRole(page, [/see prices/i, /view prices/i, /show prices/i, /get a ride/i]);
-  const deadline = Date.now() + 60000;
+  // After both locations are set, Uber auto-navigates to product-selection
+  // (possibly via a reCAPTCHA "One more step" interstitial that must be solved
+  // by the user in the visible browser — never bypassed).
+  const deadline = Date.now() + 180000;
+  let challengedAnnounced = false;
   while (Date.now() < deadline) {
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(2000);
+    const url = page.url();
     const body = await page.locator("body").innerText().catch(() => "");
-    if (/HK\$|HKD|UberX|fare/i.test(body)) {
+    if (/one more step/i.test(body) || /challenge/i.test(url) || url.includes("/go/challenge")) {
+      if (!challengedAnnounced) {
+        console.log("  reCAPTCHA 'One more step' challenge detected.");
+        console.log("  >>> Solve it in the visible browser (noVNC) — mouse clicks work there. <<<");
+        challengedAnnounced = true;
+      }
+      continue;
+    }
+    if (/HK\$|HKD/.test(body) && /UberX/i.test(body)) {
       console.log("  ride-selection screen reached (price text detected).");
       await page.waitForTimeout(4000); // let products GraphQL settle
       return true;
     }
   }
-  console.log("  ride-selection screen not detected within 60s.");
+  console.log("  ride-selection screen not detected within 180s.");
   return false;
 }
 
@@ -442,30 +507,41 @@ async function main(): Promise<void> {
     await page.screenshot({ path: SCREENSHOT_PATH, fullPage: false }).catch(() => {});
     console.log(`Screenshot -> ${SCREENSHOT_PATH}`);
 
-    if (productsResponses.length === 0) {
-      console.error("No authenticated products GraphQL response was captured.");
-      process.exitCode = 4;
-      return;
+    // DOM text is always available on the ride-selection screen and contains the
+    // real upfront fares. Use it as a reliable source, and as a fallback when the
+    // products GraphQL response shape cannot be matched.
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+    const domFares = extractFaresFromDom(bodyText);
+    if (domFares.length > 0) {
+      await writeFile(join(DEBUG_DIR, "uber-fares-dom.txt"), bodyText, "utf8").catch(() => {});
+      console.log(`  extracted ${domFares.length} fares from DOM text.`);
     }
 
+    let fares: ExtractedFare[] = [];
+    let latest: { url: string; json: Json } | null = null;
+    if (productsResponses.length > 0) {
+      latest = productsResponses[productsResponses.length - 1];
+      fares = extractFaresFromProducts(latest.json);
+    }
     const merged = productsResponses.map((r) => extractFaresFromProducts(r.json)).flat();
-    const latest = productsResponses[productsResponses.length - 1];
-    const fares = extractFaresFromProducts(latest.json);
-    const anyRealFare = (merged.length ? merged : fares).some((f) => fareMagnitude(f) !== null);
+    // Prefer GraphQL fares when present; otherwise fall back to DOM fares.
+    const source = fares.length > 0 ? fares : domFares.length > 0 ? domFares : [];
+    const allExtracted = merged.length > 0 ? merged : source;
+    const anyRealFare = allExtracted.some((f) => fareMagnitude(f) !== null);
     if (!anyRealFare) {
       console.error(
-        "Products response captured but all fares are empty — the session is a GUEST/anonymous " +
-          "session, not an authenticated rider. Re-run with --login and complete Uber login.",
+        "No real fares extracted (GraphQL and DOM both empty) — the session may be a " +
+          "GUEST/anonymous session, not an authenticated rider. Re-run with --login and complete Uber login.",
       );
       await writeFile(
         FARES_PATH,
-        JSON.stringify({ taskId: "hk_202606192058594097", capturedAt: new Date().toISOString(), route: ROUTE, fares, authenticated: false }, null, 2) + "\n",
+        JSON.stringify({ taskId: "hk_202606192058594097", capturedAt: new Date().toISOString(), route: ROUTE, fares: source, authenticated: false }, null, 2) + "\n",
         "utf8",
       );
       process.exitCode = 6;
       return;
     }
-    const verifications = verifyFares(merged.length ? merged : fares);
+    const verifications = verifyFares(allExtracted);
 
     await writeFile(
       FARES_PATH,
@@ -474,8 +550,9 @@ async function main(): Promise<void> {
           taskId: "hk_202606192058594097",
           capturedAt: new Date().toISOString(),
           route: ROUTE,
-          productsResponseUrl: latest.url,
-          fares,
+          productsResponseUrl: latest ? latest.url : null,
+          fares: source,
+          domFares,
           verifications,
         },
         null,
@@ -502,9 +579,16 @@ async function main(): Promise<void> {
     // ingest it without schema changes. Only written when real fares were found.
     await mkdir(RESPONSE_DIR, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, "");
-    const respPath = join(RESPONSE_DIR, `${stamp}-go-graphql-auth.json`);
-    await writeFile(respPath, JSON.stringify(latest.json, null, 2) + "\n", "utf8");
-    console.log(`\nAuth products response -> ${respPath}`);
+    if (latest) {
+      const respPath = join(RESPONSE_DIR, `${stamp}-go-graphql-auth.json`);
+      await writeFile(respPath, JSON.stringify(latest.json, null, 2) + "\n", "utf8");
+      console.log(`\nAuth products response -> ${respPath}`);
+    } else {
+      // DOM-only extraction: persist the captured DOM fares for the pipeline.
+      const domPath = join(RESPONSE_DIR, `${stamp}-dom-fares-auth.json`);
+      await writeFile(domPath, JSON.stringify({ source: "dom.text", fares: domFares, route: ROUTE }, null, 2) + "\n", "utf8");
+      console.log(`\nDOM fares (no GraphQL capture) -> ${domPath}`);
+    }
     console.log('To build the 89-column CSV, run: pnpm uber-extract');
     if (!allMatch) process.exitCode = 5;
   } finally {
