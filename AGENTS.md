@@ -57,8 +57,21 @@ UberXXL HK$219.00, Black HK$221.00, Uber Pet HK$171.00, Assist HK$151.00.
   The script waits up to 10 min for the human; timeout = no false save.
 
 ## Status
-- Fare extraction logic: DONE & verified (unit tests pass, all 8 known fares match).
-- Browser launch under Xvfb: works; strict login check no longer false-positives.
-- 89-column pipeline integration: wired (auth response → debug/uber-responses/).
-- BLOCKER on real fare extraction: requires a human to run --login and authenticate.
-  Once done, extraction + 89-col CSV will populate real fares automatically.
+- Fare extraction logic: DONE & verified. Real authenticated fares extracted from
+  BOTH the products GraphQL response (fareAmountE5) and DOM text.
+- Authentication: DONE. Human logged in via visible Chromium + noVNC (CAPTCHA solved
+  by user). Session saved to debug/uber-auth-state.json (gitignored).
+- 89-column pipeline: DONE & verified. output/public-products.csv has 89 columns,
+  13 products with real fares + HKD currency.
+- deduplicateProducts prefers fare-bearing variants so the authenticated response
+  (not the old guest/anonymous 00026 capture) wins the dedup.
+- productToOutputRow falls back to product-level currencyCode (fare-level is null
+  in m.uber.com's RVWebCommonFare; currencyCode lives on the product node).
+- driveRoute: clicks "Enter pickup location" → /go/pickup page with both Pickup
+  + Dropoff search inputs → fills both by name → auto-navigates to product-selection.
+  Detects "One more step" reCAPTCHA and waits for the human to solve it in noVNC.
+
+## Verified live fares (2026-08-15, authenticated session)
+UberX HK$147.79, Taxi HK$146.29, Comfort HK$157.83, UberXL HK$205.38,
+UberXXL HK$219.00, Black HK$217.33, Uber Pet HK$167.79, Assist HK$147.79.
+All within 5% of known manual fares (live pricing drift). Tolerance = 5%.

@@ -51,6 +51,7 @@ export interface Product {
   hasPromo: boolean | null;
   hasRidePass: boolean | null;
   preAdjustmentValue: string | null;
+  currencyCode: string | null;
   fares: Fare[] | null;
 }
 
