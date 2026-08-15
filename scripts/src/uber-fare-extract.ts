@@ -32,17 +32,18 @@ import {
   type Response,
 } from "playwright";
 
-const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const PROJECT_DIR = dirname(dirname(SCRIPT_DIR));
-const DEBUG_DIR = join(PROJECT_DIR, "debug");
-const OUTPUT_DIR = join(PROJECT_DIR, "output");
-const AUTH_STATE_PATH = join(DEBUG_DIR, "uber-auth-state.json");
-const FARES_PATH = join(DEBUG_DIR, "uber-fares.json");
-const SCREENSHOT_PATH = join(DEBUG_DIR, "uber-ride-selection.png");
-const RESPONSE_DIR = join(DEBUG_DIR, "uber-responses");
+export const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
+export const PROJECT_DIR = dirname(dirname(SCRIPT_DIR));
+export const DEBUG_DIR = join(PROJECT_DIR, "debug");
+export const OUTPUT_DIR = join(PROJECT_DIR, "output");
+export const AUTH_STATE_PATH = join(DEBUG_DIR, "uber-auth-state.json");
+export const FARES_PATH = join(DEBUG_DIR, "uber-fares.json");
+export const SCREENSHOT_PATH = join(DEBUG_DIR, "uber-ride-selection.png");
+export const RESPONSE_DIR = join(DEBUG_DIR, "uber-responses");
 
-const HOME_URL = "https://m.uber.com/";
-const ROUTE = {
+export const HOME_URL = "https://m.uber.com/";
+export const ROUTE: RouteDef = {
+  id: "hk_202606192058594097",
   pickupName: "沙田醫院",
   destinationName: "南方花園",
   pickup: { lat: 22.395771, lng: 114.217333 },
@@ -68,7 +69,16 @@ const FARE_TOLERANCE = 0.05; // 5%
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
-interface ExtractedFare {
+/** A route definition usable by the batch monitor and the single-route CLI. */
+export interface RouteDef {
+  id: string;
+  pickupName: string;
+  destinationName: string;
+  pickup: { lat: number; lng: number };
+  destination: { lat: number; lng: number };
+}
+
+export interface ExtractedFare {
   displayName: string;
   fare: string | null;
   fareAmountE5: number | null;
@@ -84,6 +94,47 @@ interface Verification {
   delta: number | null;
   withinTolerance: boolean;
   status: "match" | "mismatch" | "no_reference" | "not_extracted";
+}
+
+/** Per-context products-response collector (avoids module-level races). */
+export interface ResponseCollector {
+  responses: { url: string; json: Json }[];
+  handler: (response: Response) => void;
+}
+
+export function createResponseCollector(): ResponseCollector {
+  const responses: { url: string; json: Json }[] = [];
+  const handler = (response: Response): void => {
+    const url = response.url();
+    if (!isUberRequest(url)) return;
+    response
+      .body()
+      .then((body) => {
+        const ct = (response.headers()["content-type"] ?? "").toLowerCase();
+        const isJson = ct.includes("json") || body.slice(0, 1).toString("utf8") === "{";
+        if (!isJson) return;
+        let json: Json;
+        try {
+          json = JSON.parse(body.toString("utf8")) as Json;
+        } catch {
+          return;
+        }
+        if (looksLikeProductsResponse(url, json)) responses.push({ url, json });
+      })
+      .catch(() => {});
+  };
+  return { responses, handler };
+}
+
+/** Result of a single route extraction attempt. */
+export interface RouteExtractionResult {
+  routeId: string;
+  reached: boolean;
+  challenged: boolean;
+  fares: ExtractedFare[];
+  domFares: ExtractedFare[];
+  productsJson: Json | null;
+  bodyText: string;
 }
 
 const productsResponses: { url: string; json: Json }[] = [];
@@ -274,7 +325,7 @@ export function verifyFares(extracted: ExtractedFare[]): Verification[] {
   return results;
 }
 
-async function isLoggedIn(page: Page): Promise<boolean> {
+export async function isLoggedIn(page: Page): Promise<boolean> {
   // Authenticated m.uber.com shows the ride planner with an account affordance
   // and NO "Log in" / "Continue with phone" CTA. Guest sessions set a
   // jwt-session cookie too, so a cookie alone is NOT a reliable signal.
@@ -307,7 +358,7 @@ async function isLoggedIn(page: Page): Promise<boolean> {
   return false;
 }
 
-async function saveAuthState(context: BrowserContext): Promise<void> {
+export async function saveAuthState(context: BrowserContext): Promise<void> {
   const state = await context.storageState();
   await mkdir(DEBUG_DIR, { recursive: true });
   await writeFile(AUTH_STATE_PATH, JSON.stringify(state, null, 2), "utf8");
@@ -406,7 +457,13 @@ async function fillLocation(
   }
 }
 
-async function driveRoute(page: Page): Promise<boolean> {
+/**
+ * Drive a single route to the ride-selection screen. Parameterized so the batch
+ * monitor can reuse it for arbitrary routes. Returns `reached` and `challenged`
+ * flags (challenge = CAPTCHA/security interstitial detected — never bypassed).
+ */
+export async function driveRoute(page: Page, route: RouteDef = ROUTE, opts?: { challengeWaitMs?: number }): Promise<{ reached: boolean; challenged: boolean }> {
+  const challengeWaitMs = opts?.challengeWaitMs ?? 180000;
   await clickByRole(page, [/accept all/i, /^accept$/i, /^got it$/i]);
   // Home screen exposes "Enter pickup location" which opens the pickup planner
   // with both Pickup and Dropoff search inputs.
@@ -421,35 +478,72 @@ async function driveRoute(page: Page): Promise<boolean> {
     await page.goto("https://m.uber.com/go/pickup", { waitUntil: "load", timeout: 60000 }).catch(() => {});
   }
   await page.waitForTimeout(800);
-  const destOk = await fillLocation(page, "destination", ROUTE.destinationName, `${ROUTE.destination.lat},${ROUTE.destination.lng}`);
-  if (!destOk) return false;
-  const pickOk = await fillLocation(page, "pickup", ROUTE.pickupName, `${ROUTE.pickup.lat},${ROUTE.pickup.lng}`);
-  if (!pickOk) return false;
+  const destOk = await fillLocation(page, "destination", route.destinationName, `${route.destination.lat},${route.destination.lng}`);
+  if (!destOk) return { reached: false, challenged: false };
+  const pickOk = await fillLocation(page, "pickup", route.pickupName, `${route.pickup.lat},${route.pickup.lng}`);
+  if (!pickOk) return { reached: false, challenged: false };
   // After both locations are set, Uber auto-navigates to product-selection
   // (possibly via a reCAPTCHA "One more step" interstitial that must be solved
   // by the user in the visible browser — never bypassed).
-  const deadline = Date.now() + 180000;
-  let challengedAnnounced = false;
+  const deadline = Date.now() + challengeWaitMs;
+  let challenged = false;
   while (Date.now() < deadline) {
     await page.waitForTimeout(2000);
     const url = page.url();
     const body = await page.locator("body").innerText().catch(() => "");
     if (/one more step/i.test(body) || /challenge/i.test(url) || url.includes("/go/challenge")) {
-      if (!challengedAnnounced) {
+      if (!challenged) {
         console.log("  reCAPTCHA 'One more step' challenge detected.");
-        console.log("  >>> Solve it in the visible browser (noVNC) — mouse clicks work there. <<<");
-        challengedAnnounced = true;
+        challenged = true;
       }
       continue;
     }
     if (/HK\$|HKD/.test(body) && /UberX/i.test(body)) {
       console.log("  ride-selection screen reached (price text detected).");
       await page.waitForTimeout(4000); // let products GraphQL settle
-      return true;
+      return { reached: true, challenged: false };
     }
   }
-  console.log("  ride-selection screen not detected within 180s.");
-  return false;
+  // Timed out: if a challenge was seen at any point, report it as challenged.
+  return { reached: false, challenged };
+}
+
+/**
+ * Reusable single-route extraction: drive the route on an authenticated page
+ * (with a per-page response collector attached), then extract fares from the
+ * products GraphQL response and DOM text. Never fabricates fares. Returns a
+ * structured result the batch monitor can cache, checkpoint, and validate.
+ *
+ * The caller is responsible for launching the browser/context, attaching the
+ * collector's `handler` as a page "response" listener, and checking that the
+ * session is authenticated before calling this.
+ */
+export async function extractRouteFares(
+  page: Page,
+  route: RouteDef,
+  collector: ResponseCollector,
+  opts?: { challengeWaitMs?: number },
+): Promise<RouteExtractionResult> {
+  const { reached, challenged } = await driveRoute(page, route, opts);
+  const bodyText = await page.locator("body").innerText().catch(() => "");
+  const domFares = extractFaresFromDom(bodyText);
+  let fares: ExtractedFare[] = [];
+  let productsJson: Json | null = null;
+  if (collector.responses.length > 0) {
+    const latest = collector.responses[collector.responses.length - 1];
+    productsJson = latest.json;
+    fares = extractFaresFromProducts(latest.json);
+  }
+  const source = fares.length > 0 ? fares : domFares;
+  return {
+    routeId: route.id,
+    reached,
+    challenged,
+    fares: source,
+    domFares,
+    productsJson,
+    bodyText,
+  };
 }
 
 async function main(): Promise<void> {
@@ -499,7 +593,12 @@ async function main(): Promise<void> {
     }
 
     console.log("Driving HK route to ride-selection screen...");
-    const reached = await driveRoute(page);
+    const { reached, challenged } = await driveRoute(page);
+    if (challenged) {
+      console.error("Security challenge detected — session paused. Re-run after solving in the browser.");
+      process.exitCode = 7;
+      return;
+    }
     if (!reached) {
       console.error("Could not reach the ride-selection screen.");
       process.exitCode = 3;

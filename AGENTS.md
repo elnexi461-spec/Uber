@@ -75,3 +75,36 @@ UberXXL HK$219.00, Black HK$221.00, Uber Pet HK$171.00, Assist HK$151.00.
 UberX HK$147.79, Taxi HK$146.29, Comfort HK$157.83, UberXL HK$205.38,
 UberXXL HK$219.00, Black HK$217.33, Uber Pet HK$167.79, Assist HK$147.79.
 All within 5% of known manual fares (live pricing drift). Tolerance = 5%.
+
+## Hardened batch monitor (uber-monitor.ts)
+Large-scale price-monitoring layer that reuses uber-fare-extract.ts and the
+89-col pipeline WITHOUT rewriting either. Adds only the hardening code:
+- Persistent authenticated browser session (reuses debug/uber-auth-state.json)
+- Per-session rate limiting (--min-interval-ms, default 15s)
+- Global concurrency limit (Semaphore, --max-concurrency, default 1)
+- Exponential backoff with full jitter (backoffMs)
+- Persisted route-keyed result cache (debug/monitor-cache.json)
+- Duplicate-route detection (routeKey from rounded coords; cache.has)
+- Checkpointing + resumable jobs (debug/monitor-checkpoint.json)
+- Retry budgets (per-route --retry-budget + --global-retry-budget)
+- Session health/expiry detection (isLoggedIn before each request)
+- CAPTCHA/challenge detection (driveRoute returns challenged flag)
+- Automatic pause of challenged sessions (status=challenged, remaining deferred)
+- Clean recovery after temporary failures (retry within budget, then fail)
+- Structured JSON logging (debug/monitor.log) + metrics (debug/monitor-metrics.json)
+
+Flow: route queue → scheduler → healthy session → rate-limited Playwright request
+→ extractRouteFares → validation (no fabrication) → cache + checkpoint → 89-col output.
+
+Run: `DISPLAY=:99 ./scripts/node_modules/.bin/tsx scripts/src/uber-monitor.ts`
+Options: --routes <json> --max-concurrency N --min-interval-ms N --retry-budget N
+         --global-retry-budget N --challenge-wait-ms N --cache-ttl-ms N --dry-run
+npm: `pnpm uber-monitor` (from scripts/)
+
+Test batch results (2026-08-15):
+- 1-route batch: 1 request, 13 fares, 0 retries, 0 CAPTCHA, session closed.
+- Re-run same route: 1 cache hit, 0 requests (browser not opened).
+- 2-route dedup batch (same route twice): route1 done (13 fares), route2 cached.
+- 2 distinct routes: route_a done (13 fares), route_b failed after 2 attempts
+  (airport route has no upfront fares) — retry+backoff exercised, no fabrication.
+- All extracted fares match known manual fares within 5%.
