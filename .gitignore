@@ -57,3 +57,10 @@ Thumbs.db
 /debug/89-field-coverage.json
 /debug/hong-kong-report.json
 /debug/uber-fares-dom.txt
+
+# Uber monitor operational artifacts (transient; may contain fare snapshots)
+/debug/monitor.log
+/debug/monitor-checkpoint.json
+/debug/monitor-cache.json
+/debug/monitor-metrics.json
+/debug/uber-responses/batch/
