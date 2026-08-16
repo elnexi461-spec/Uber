@@ -1,0 +1,78 @@
+The current Replit project is working and all existing tests pass.
+
+Do NOT rebuild or modify the existing fare extraction engine.
+
+Implement the next feature: interactive Uber authentication through a temporary browser session URL.
+
+Desired flow:
+
+Dashboard:
+[ Login to Uber ]
+
+→ POST "/api/auth/login"
+
+→ Replit starts a temporary Playwright browser session.
+
+→ Backend generates a cryptographically random temporary session ID.
+
+→ Dashboard receives a temporary URL such as:
+
+"https://<replit-domain>/auth/session/<temporary-id>"
+
+→ I open that URL on my phone.
+
+→ The URL must give me REAL interactive access to the Playwright browser running inside Replit.
+
+→ I manually complete Uber login, OTP and CAPTCHA if Uber requests them.
+
+→ Backend detects successful authentication using the existing strict "isLoggedIn()" function.
+
+→ Browser session remains alive until authentication succeeds or the temporary session expires.
+
+→ Backend saves Playwright "storageState()" to the existing "AUTH_STATE_PATH".
+
+→ Dashboard shows:
+"🟢 Uber Connected"
+
+Then:
+
+[ Update Session ]
+
+should verify the authenticated remote session and ensure the saved storage state is the one used by the existing scraper.
+
+Requirements:
+
+- Reuse existing Playwright code.
+- Reuse existing "AUTH_STATE_PATH".
+- Reuse existing "isLoggedIn()".
+- Do not expose cookies, tokens or storageState to frontend JavaScript.
+- Never log session IDs, cookies, OTPs or storageState contents.
+- Temporary login URLs expire after 10–15 minutes.
+- Session IDs must be cryptographically random.
+- Destroy the temporary browser after successful authentication or expiration.
+- "/api/auth/status" must report login state.
+- "/api/auth/logout" must delete the stored authentication state and close any active login browser.
+- Run Batch must require a valid authenticated session.
+- Do not bypass CAPTCHA or Uber security; I will solve challenges manually.
+
+CRITICAL:
+
+A normal local browser opening Uber is NOT sufficient. The authenticated cookies must belong to the Playwright browser running inside Replit so that the existing scraper can immediately reuse them.
+
+First inspect the current project and dependencies. If a remote-browser interaction mechanism is already present, reuse it. Otherwise implement the smallest practical mechanism compatible with the current Replit environment.
+
+Do not touch the 39-fare extraction logic, monitor, cache, checkpointing or 89-column pipeline.
+
+After implementation:
+
+- typecheck
+- run all existing tests
+- verify Login to Uber
+- verify temporary URL
+- verify interactive browser access
+- verify authentication detection
+- verify storageState is saved
+- verify "/api/auth/status"
+- verify Run Batch uses the authenticated session
+
+Minimize credits. Make targeted changes only.
