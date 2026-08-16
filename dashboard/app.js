@@ -179,6 +179,12 @@ async function loadJobs() {
 
 $("#run-batch-btn")?.addEventListener("click", async () => {
   try {
+    const auth = await api("/api/auth/status");
+    if (!auth.connected) {
+      $("#run-status").textContent = "Error: No authenticated Uber session. Please connect your account first.";
+      return;
+    }
+
     $("#run-status").textContent = "Starting batch…";
     $("#run-batch-btn").disabled = true;
     const res = await api("/api/jobs/run", {
@@ -231,7 +237,123 @@ async function loadExports() {
   </tr>`).join("");
 }
 
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+let authPollInterval = null;
+
+async function loadAuth() {
+  try {
+    const a = await api("/api/auth/status");
+    const indicator = $("#auth-indicator");
+    const text = $("#auth-text");
+    const details = $("#auth-details");
+    const loginBtn = $("#auth-login-btn");
+    const updateBtn = $("#auth-update-btn");
+    const disconnectBtn = $("#auth-disconnect-btn");
+    const instructions = $("#auth-instructions");
+
+    if (a.connected) {
+      indicator.textContent = "🟢";
+      text.textContent = "Uber Account Connected";
+      details.innerHTML = `Last authenticated: ${fmtTime(a.lastAuthenticated)} · Age: ${a.ageHours}h`;
+      loginBtn.style.display = "none";
+      updateBtn.style.display = "";
+      disconnectBtn.style.display = "";
+      instructions.style.display = "none";
+      instructions.innerHTML = "";
+    } else if (a.exists && a.stale) {
+      indicator.textContent = "🟡";
+      text.textContent = "Session Expired — Re-authentication Required";
+      details.innerHTML = `Last authenticated: ${fmtTime(a.lastAuthenticated)} · Age: ${a.ageHours}h`;
+      loginBtn.style.display = "";
+      updateBtn.style.display = "none";
+      disconnectBtn.style.display = "";
+      instructions.style.display = "none";
+      instructions.innerHTML = "";
+    } else {
+      indicator.textContent = "🔴";
+      text.textContent = "Not Connected to Uber";
+      details.innerHTML = "Run batch extraction requires an authenticated Uber session.";
+      loginBtn.style.display = "";
+      updateBtn.style.display = "none";
+      disconnectBtn.style.display = "none";
+      instructions.style.display = "none";
+      instructions.innerHTML = "";
+    }
+  } catch (err) {
+    $("#auth-indicator").textContent = "⚪";
+    $("#auth-text").textContent = "Unable to check auth status";
+    console.error(err);
+  }
+}
+
+async function startAuthFlow() {
+  const instructions = $("#auth-instructions");
+  const loginBtn = $("#auth-login-btn");
+  try {
+    loginBtn.disabled = true;
+    instructions.style.display = "";
+    instructions.innerHTML = `<p>Generating secure token…</p>`;
+
+    const res = await api("/api/auth/login", { method: "POST" });
+
+    instructions.innerHTML = `
+      <div class="login-instruction-box">
+        <p><strong>Complete Uber login on your local machine</strong></p>
+        <p>Render cannot display a browser window. Run this command in your local terminal:</p>
+        <pre class="code-block">${res.command}</pre>
+        <p>Or copy the token and server URL:</p>
+        <div class="token-row">
+          <input type="text" readonly value="${res.token}" class="token-input" onclick="this.select()">
+          <button class="copy-btn" data-copy="${res.token}">Copy Token</button>
+        </div>
+        <p class="muted">Token expires in ${res.expiresInMinutes} minutes.</p>
+        <p class="muted">This window will automatically detect when login is complete.</p>
+      </div>
+    `;
+
+    instructions.querySelector(".copy-btn")?.addEventListener("click", (e) => {
+      const val = e.target.dataset.copy;
+      navigator.clipboard.writeText(val).then(() => {
+        e.target.textContent = "Copied!";
+        setTimeout(() => (e.target.textContent = "Copy Token"), 2000);
+      });
+    });
+
+    if (authPollInterval) clearInterval(authPollInterval);
+    authPollInterval = setInterval(async () => {
+      await loadAuth();
+      const status = await api("/api/auth/status");
+      if (status.connected) {
+        clearInterval(authPollInterval);
+        authPollInterval = null;
+        instructions.innerHTML = `<p class="green">✅ Uber account connected successfully!</p>`;
+        setTimeout(() => { instructions.style.display = "none"; }, 5000);
+      }
+    }, 3000);
+
+  } catch (err) {
+    instructions.innerHTML = `<p class="red">Error: ${err.message}</p>`;
+    loginBtn.disabled = false;
+  }
+}
+
+async function disconnectAuth() {
+  try {
+    await api("/api/auth/logout", { method: "POST" });
+    await loadAuth();
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+$("#auth-login-btn")?.addEventListener("click", startAuthFlow);
+$("#auth-update-btn")?.addEventListener("click", startAuthFlow);
+$("#auth-disconnect-btn")?.addEventListener("click", disconnectAuth);
+
 // ── Init ────────────────────────────────────────────────────────────────────
 loadHealth();
+loadAuth();
 loadDashboard();
 setInterval(loadHealth, 15000);
+setInterval(loadAuth, 15000);

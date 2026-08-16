@@ -24,6 +24,22 @@
     <!-- Dashboard -->
     <section id="view-dashboard" class="view active">
       <h1>Dashboard</h1>
+
+      <!-- Auth Card -->
+      <div class="auth-card" id="auth-card">
+        <div class="auth-status" id="auth-status">
+          <span class="auth-indicator" id="auth-indicator">⚪</span>
+          <span class="auth-text" id="auth-text">Checking Uber connection…</span>
+        </div>
+        <div class="auth-details" id="auth-details"></div>
+        <div class="auth-actions" id="auth-actions">
+          <button id="auth-login-btn" class="primary-btn">Login to Uber</button>
+          <button id="auth-update-btn" class="secondary-btn" style="display:none">Update Session</button>
+          <button id="auth-disconnect-btn" class="danger-btn" style="display:none">Disconnect</button>
+        </div>
+        <div class="auth-instructions" id="auth-instructions" style="display:none"></div>
+      </div>
+
       <div class="metrics-grid" id="metrics-grid"></div>
       <div class="cards-row" id="session-card"></div>
       <h2>Recent Log</h2>

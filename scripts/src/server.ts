@@ -18,6 +18,7 @@ import { existsSync } from "node:fs";
 import { join, dirname, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIR = join(__dirname, "..", "..");
@@ -39,6 +40,53 @@ const FILES = {
   fares: join(DEBUG_DIR, "uber-fares.json"),
   monitorLog: join(DEBUG_DIR, "monitor.log"),
 };
+
+const AUTH_STATE_PATH = join(DEBUG_DIR, "uber-auth-state.json");
+const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Secure login-token store (in-memory, never persisted, never logged)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface LoginToken {
+  token: string;
+  createdAt: number;
+  expiresAt: number;
+  used: boolean;
+}
+
+const loginTokens = new Map<string, LoginToken>();
+const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+function generateToken(): string {
+  return randomBytes(32).toString("hex");
+}
+
+function createLoginToken(): string {
+  const token = generateToken();
+  const now = Date.now();
+  loginTokens.set(token, { token, createdAt: now, expiresAt: now + TOKEN_TTL_MS, used: false });
+  return token;
+}
+
+function validateToken(token: string): boolean {
+  const t = loginTokens.get(token);
+  if (!t) return false;
+  if (t.used) return false;
+  if (Date.now() > t.expiresAt) return false;
+  t.used = true;
+  return true;
+}
+
+// Clean up expired tokens every 60s
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, t] of loginTokens) {
+    if (now > t.expiresAt + TOKEN_TTL_MS) {
+      loginTokens.delete(token);
+    }
+  }
+}, 60000);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -180,7 +228,7 @@ let runningJob: {
 } | null = null;
 
 async function apiHealth(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const authed = existsSync(join(DEBUG_DIR, "uber-auth-state.json"));
+  const authed = existsSync(AUTH_STATE_PATH);
   const products = existsSync(FILES.productsJson);
 
   // Runtime capability checks
@@ -189,10 +237,23 @@ async function apiHealth(_req: IncomingMessage, res: ServerResponse): Promise<vo
   const monitorPath = join(SCRIPTS_DIR, "src", "uber-monitor.ts");
   const monitorStat = await stat(monitorPath).catch(() => null);
 
+  // Session age
+  let sessionAgeMs: number | null = null;
+  let sessionAgeHours: number | null = null;
+  if (authed) {
+    const st = await stat(AUTH_STATE_PATH).catch(() => null);
+    if (st) {
+      sessionAgeMs = Date.now() - st.mtime.getTime();
+      sessionAgeHours = Math.round(sessionAgeMs / 3600000 * 10) / 10;
+    }
+  }
+
   sendJson(res, 200, {
     status: "ok",
     time: new Date().toISOString(),
     authenticatedSession: authed,
+    sessionAgeHours,
+    sessionStale: sessionAgeMs !== null && sessionAgeMs > SESSION_MAX_AGE_MS,
     hasPipelineOutput: products,
     runtime: {
       tsxExists: existsSync(tsxPath),
@@ -496,6 +557,100 @@ async function apiMonitorLog(_req: IncomingMessage, res: ServerResponse): Promis
 // Router
 // ─────────────────────────────────────────────────────────────────────────────
 
+async function apiAuthLogin(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const token = createLoginToken();
+  const serverUrl = process.env["RENDER_EXTERNAL_URL"] ?? `http://localhost:${PORT}`;
+  sendJson(res, 200, {
+    status: "local_login_required",
+    token,
+    serverUrl,
+    instructions: "Run the local login helper to authenticate with Uber in a headed browser on your machine.",
+    command: `npx tsx scripts/src/uber-login-remote.ts --token ${token} --server ${serverUrl}`,
+    expiresInMinutes: Math.round(TOKEN_TTL_MS / 60000),
+  });
+}
+
+async function apiAuthStatus(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const exists = existsSync(AUTH_STATE_PATH);
+  let lastAuthenticated: string | null = null;
+  let ageHours: number | null = null;
+  let stale = false;
+
+  if (exists) {
+    const st = await stat(AUTH_STATE_PATH).catch(() => null);
+    if (st) {
+      lastAuthenticated = st.mtime.toISOString();
+      ageHours = Math.round((Date.now() - st.mtime.getTime()) / 3600000 * 10) / 10;
+      stale = Date.now() - st.mtime.getTime() > SESSION_MAX_AGE_MS;
+    }
+  }
+
+  sendJson(res, 200, {
+    connected: exists && !stale,
+    exists,
+    stale,
+    lastAuthenticated,
+    ageHours,
+  });
+}
+
+async function apiAuthCallback(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (req.method !== "POST") {
+    sendJson(res, 405, { error: "Method not allowed" });
+    return;
+  }
+
+  const body = await new Promise<string>((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => { data += chunk; });
+    req.on("end", () => resolve(data));
+    req.on("error", reject);
+  });
+
+  let parsed: { token?: string; storageState?: string } = {};
+  try {
+    parsed = JSON.parse(body) as typeof parsed;
+  } catch {
+    sendJson(res, 400, { error: "Invalid JSON body" });
+    return;
+  }
+
+  if (!parsed.token || !parsed.storageState) {
+    sendJson(res, 400, { error: "Missing token or storageState" });
+    return;
+  }
+
+  if (!validateToken(parsed.token)) {
+    sendJson(res, 403, { error: "Invalid or expired token" });
+    return;
+  }
+
+  // Decode, validate basic JSON structure, save. Never log contents.
+  let decoded: string;
+  try {
+    decoded = Buffer.from(parsed.storageState, "base64").toString("utf8");
+    // Validate it's valid JSON (Playwright storageState is JSON)
+    JSON.parse(decoded);
+  } catch {
+    sendJson(res, 400, { error: "Invalid storageState format" });
+    return;
+  }
+
+  await mkdir(DEBUG_DIR, { recursive: true });
+  await writeFile(AUTH_STATE_PATH, decoded, "utf8");
+  console.log("[auth] Session state saved (token consumed)");
+  sendJson(res, 200, { status: "saved", message: "Authenticated session stored." });
+}
+
+async function apiAuthLogout(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (existsSync(AUTH_STATE_PATH)) {
+    await writeFile(AUTH_STATE_PATH, "", "utf8");
+    // Truncate rather than unlink so the file handle pattern stays stable
+  }
+  console.log("[auth] Session state cleared");
+  sendJson(res, 200, { status: "cleared", message: "Authenticated session removed." });
+}
+
 async function routeApi(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = (req.url ?? "").split("?")[0];
   const method = req.method ?? "GET";
@@ -511,6 +666,10 @@ async function routeApi(req: IncomingMessage, res: ServerResponse): Promise<void
     if (url === "/api/exports" && method === "GET") return await apiExports(req, res);
     if (url === "/api/exports/download") return await apiExportDownload(req, res);
     if (url === "/api/monitor/log") return await apiMonitorLog(req, res);
+    if (url === "/api/auth/login" && method === "POST") return await apiAuthLogin(req, res);
+    if (url === "/api/auth/status" && method === "GET") return await apiAuthStatus(req, res);
+    if (url === "/api/auth/callback" && method === "POST") return await apiAuthCallback(req, res);
+    if (url === "/api/auth/logout" && method === "POST") return await apiAuthLogout(req, res);
     sendJson(res, 404, { error: `Unknown API route: ${method} ${url}` });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
