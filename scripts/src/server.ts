@@ -170,17 +170,37 @@ interface FaresOutput {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Track an in-flight monitor batch so the UI can show running state. */
-let runningJob: { pid: number; startedAt: string; routes: number } | null = null;
+let runningJob: {
+  pid: number;
+  startedAt: string;
+  routes: number;
+  exitCode: number | null;
+  stderr: string[];
+  error: string | null;
+} | null = null;
 
 async function apiHealth(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const authed = existsSync(join(DEBUG_DIR, "uber-auth-state.json"));
   const products = existsSync(FILES.productsJson);
+
+  // Runtime capability checks
+  const tsxPath = join(SCRIPTS_DIR, "node_modules", ".bin", "tsx");
+  const playwrightPath = join(SCRIPTS_DIR, "node_modules", "playwright");
+  const monitorPath = join(SCRIPTS_DIR, "src", "uber-monitor.ts");
+  const monitorStat = await stat(monitorPath).catch(() => null);
+
   sendJson(res, 200, {
     status: "ok",
     time: new Date().toISOString(),
     authenticatedSession: authed,
     hasPipelineOutput: products,
-    playwright: existsSync(join(SCRIPTS_DIR, "node_modules", "playwright")),
+    runtime: {
+      tsxExists: existsSync(tsxPath),
+      playwrightExists: existsSync(playwrightPath),
+      monitorScriptExists: existsSync(monitorPath),
+      monitorScriptSize: monitorStat?.size ?? 0,
+      monitorScriptHealthy: (monitorStat?.size ?? 0) > 1000,
+    },
   });
 }
 
@@ -293,8 +313,21 @@ async function apiPrices(_req: IncomingMessage, res: ServerResponse): Promise<vo
 
 async function apiJobs(_req: IncomingMessage, res: ServerResponse): Promise<void> {
   const checkpoint = await readJson<{ startedAt: string; updatedAt: string; jobs: CheckpointJob[]; metrics: MonitorMetrics }>(FILES.checkpoint);
+
+  const lastBatch = runningJob
+    ? {
+        status: runningJob.exitCode === null ? "running" : "finished",
+        pid: runningJob.pid,
+        startedAt: runningJob.startedAt,
+        routes: runningJob.routes,
+        exitCode: runningJob.exitCode,
+        recentStderr: runningJob.stderr.slice(-10),
+        spawnError: runningJob.error,
+      }
+    : null;
+
   if (!checkpoint) {
-    sendJson(res, 200, { jobs: [], startedAt: null, updatedAt: null, running: Boolean(runningJob) });
+    sendJson(res, 200, { jobs: [], startedAt: null, updatedAt: null, running: Boolean(runningJob && runningJob.exitCode === null), lastBatch });
     return;
   }
   const jobs = checkpoint.jobs.map((j) => ({
@@ -311,8 +344,8 @@ async function apiJobs(_req: IncomingMessage, res: ServerResponse): Promise<void
     startedAt: checkpoint.startedAt,
     updatedAt: checkpoint.updatedAt,
     metrics: checkpoint.metrics,
-    running: Boolean(runningJob),
-    runningJob,
+    running: Boolean(runningJob && runningJob.exitCode === null),
+    lastBatch,
   });
 }
 
