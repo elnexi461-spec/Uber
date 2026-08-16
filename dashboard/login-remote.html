@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>Uber Remote Login</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; height: 100dvh; display: flex; flex-direction: column; }
+    #viewport { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+    #screen { flex: 1; position: relative; overflow: hidden; touch-action: none; cursor: crosshair; min-height: 0; }
+    #screen img { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
+    #click-overlay { position: absolute; inset: 0; z-index: 2; }
+    #toolbar { padding: 10px 14px; background: #1a1a1a; border-top: 1px solid #333; display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+    #status { font-size: 0.8rem; color: #aaa; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #typeInput { flex: 2; padding: 10px 12px; border-radius: 8px; border: 1px solid #444; background: #222; color: #fff; font-size: 1rem; outline: none; }
+    #typeInput:focus { border-color: #276ef1; }
+    #typeBtn { padding: 10px 18px; border-radius: 8px; border: none; background: #276ef1; color: #fff; font-weight: 600; font-size: 0.9rem; cursor: pointer; }
+    #typeBtn:active { background: #1d5fd1; }
+    .connected { color: #22c55e; }
+    .expired { color: #ef4444; }
+    .pending { color: #f59e0b; }
+    #spinner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #666; font-size: 0.9rem; pointer-events: none; }
+    .tap-indicator { position: absolute; width: 28px; height: 28px; border: 2px solid #276ef1; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; animation: tapFade 0.5s ease-out forwards; z-index: 3; }
+    @keyframes tapFade { 0% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.8); } }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <div id="screen">
+      <div id="spinner">Loading remote browser…</div>
+      <img id="screenshot" src="" alt="Remote browser" style="display:none;">
+      <div id="click-overlay"></div>
+    </div>
+    <div id="toolbar">
+      <div id="status">Connecting…</div>
+      <input id="typeInput" type="text" placeholder="Type text…" autocomplete="off" autocorrect="off" autocapitalize="off">
+      <button id="typeBtn">Type</button>
+    </div>
+  </div>
+
+  <script>
+    const sessionId = location.pathname.split('/').pop();
+    const img = document.getElementById('screenshot');
+    const overlay = document.getElementById('click-overlay');
+    const status = document.getElementById('status');
+    const typeInput = document.getElementById('typeInput');
+    const typeBtn = document.getElementById('typeBtn');
+    const spinner = document.getElementById('spinner');
+
+    let imgLoaded = false;
+    let pollTimer = null;
+    let statusTimer = null;
+
+    function updateScreenshot() {
+      const url = `/api/auth/session/${sessionId}/screenshot?t=${Date.now()}`;
+      const newImg = new Image();
+      newImg.onload = () => {
+        img.src = url;
+        img.style.display = '';
+        spinner.style.display = 'none';
+        imgLoaded = true;
+      };
+      newImg.onerror = () => {
+        // Keep trying
+      };
+      newImg.src = url;
+    }
+
+    pollTimer = setInterval(updateScreenshot, 700);
+    updateScreenshot();
+
+    // Click / touch forwarding
+    async function sendClick(clientX, clientY) {
+      const rect = img.getBoundingClientRect();
+      // Compute click position as percentage of displayed image
+      const px = ((clientX - rect.left) / rect.width) * 100;
+      const py = ((clientY - rect.top) / rect.height) * 100;
+      if (px < 0 || px > 100 || py < 0 || py > 100) return;
+
+      // Show tap indicator
+      const indicator = document.createElement('div');
+      indicator.className = 'tap-indicator';
+      indicator.style.left = (clientX - rect.left) + 'px';
+      indicator.style.top = (clientY - rect.top) + 'px';
+      overlay.appendChild(indicator);
+      setTimeout(() => indicator.remove(), 600);
+
+      // Backend viewport is 390x844
+      const viewportX = (px / 100) * 390;
+      const viewportY = (py / 100) * 844;
+
+      await fetch(`/api/auth/session/${sessionId}/click`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ x: viewportX, y: viewportY })
+      });
+    }
+
+    overlay.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      sendClick(e.clientX, e.clientY);
+    });
+
+    // Type forwarding
+    async function sendType() {
+      const text = typeInput.value;
+      if (!text) return;
+      const res = await fetch(`/api/auth/session/${sessionId}/type`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text, pressEnter: false })
+      });
+      if (res.ok) typeInput.value = '';
+    }
+
+    typeBtn.addEventListener('click', sendType);
+    typeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') sendType(); });
+
+    // Status polling
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/auth/status');
+        const data = await res.json();
+        if (data.status === 'authenticated') {
+          status.textContent = '✅ Authenticated! You can close this window.';
+          status.className = 'connected';
+          clearInterval(pollTimer);
+          clearInterval(statusTimer);
+        } else if (data.status === 'expired') {
+          status.textContent = '❌ Session expired.';
+          status.className = 'expired';
+        } else if (data.status === 'loginInProgress') {
+          status.textContent = imgLoaded ? '🟡 Tap the screen to interact' : '🟡 Loading remote browser…';
+          status.className = 'pending';
+        } else {
+          status.textContent = '⚪ Waiting for login…';
+        }
+      } catch {
+        status.textContent = '⚠️ Connection lost';
+      }
+    }
+
+    statusTimer = setInterval(checkStatus, 2500);
+    checkStatus();
+  </script>
+</body>
+</html>

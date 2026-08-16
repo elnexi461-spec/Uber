@@ -18,7 +18,15 @@ import { existsSync } from "node:fs";
 import { join, dirname, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { randomBytes } from "node:crypto";
+import {
+  createLoginSession,
+  getScreenshot,
+  forwardClick,
+  forwardType,
+  getAuthStatus,
+  clearAuthState,
+  getSessionInfo,
+} from "./uber-login-session.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIR = join(__dirname, "..", "..");
@@ -41,52 +49,7 @@ const FILES = {
   monitorLog: join(DEBUG_DIR, "monitor.log"),
 };
 
-const AUTH_STATE_PATH = join(DEBUG_DIR, "uber-auth-state.json");
-const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Secure login-token store (in-memory, never persisted, never logged)
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface LoginToken {
-  token: string;
-  createdAt: number;
-  expiresAt: number;
-  used: boolean;
-}
-
-const loginTokens = new Map<string, LoginToken>();
-const TOKEN_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-function generateToken(): string {
-  return randomBytes(32).toString("hex");
-}
-
-function createLoginToken(): string {
-  const token = generateToken();
-  const now = Date.now();
-  loginTokens.set(token, { token, createdAt: now, expiresAt: now + TOKEN_TTL_MS, used: false });
-  return token;
-}
-
-function validateToken(token: string): boolean {
-  const t = loginTokens.get(token);
-  if (!t) return false;
-  if (t.used) return false;
-  if (Date.now() > t.expiresAt) return false;
-  t.used = true;
-  return true;
-}
-
-// Clean up expired tokens every 60s
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, t] of loginTokens) {
-    if (now > t.expiresAt + TOKEN_TTL_MS) {
-      loginTokens.delete(token);
-    }
-  }
-}, 60000);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -228,7 +191,7 @@ let runningJob: {
 } | null = null;
 
 async function apiHealth(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const authed = existsSync(AUTH_STATE_PATH);
+  const auth = await getAuthStatus();
   const products = existsSync(FILES.productsJson);
 
   // Runtime capability checks
@@ -237,23 +200,12 @@ async function apiHealth(_req: IncomingMessage, res: ServerResponse): Promise<vo
   const monitorPath = join(SCRIPTS_DIR, "src", "uber-monitor.ts");
   const monitorStat = await stat(monitorPath).catch(() => null);
 
-  // Session age
-  let sessionAgeMs: number | null = null;
-  let sessionAgeHours: number | null = null;
-  if (authed) {
-    const st = await stat(AUTH_STATE_PATH).catch(() => null);
-    if (st) {
-      sessionAgeMs = Date.now() - st.mtime.getTime();
-      sessionAgeHours = Math.round(sessionAgeMs / 3600000 * 10) / 10;
-    }
-  }
-
   sendJson(res, 200, {
     status: "ok",
     time: new Date().toISOString(),
-    authenticatedSession: authed,
-    sessionAgeHours,
-    sessionStale: sessionAgeMs !== null && sessionAgeMs > SESSION_MAX_AGE_MS,
+    authenticatedSession: auth.connected,
+    authStatus: auth.status,
+    sessionAgeHours: auth.ageHours,
     hasPipelineOutput: products,
     runtime: {
       tsxExists: existsSync(tsxPath),
@@ -558,47 +510,53 @@ async function apiMonitorLog(_req: IncomingMessage, res: ServerResponse): Promis
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function apiAuthLogin(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const token = createLoginToken();
-  const serverUrl = process.env["RENDER_EXTERNAL_URL"] ?? `http://localhost:${PORT}`;
+  const serverUrl = process.env["RENDER_EXTERNAL_URL"] ?? `http://${HOST}:${PORT}`;
+  const session = await createLoginSession(serverUrl);
   sendJson(res, 200, {
-    status: "local_login_required",
-    token,
-    serverUrl,
-    instructions: "Run the local login helper to authenticate with Uber in a headed browser on your machine.",
-    command: `npx tsx scripts/src/uber-login-remote.ts --token ${token} --server ${serverUrl}`,
-    expiresInMinutes: Math.round(TOKEN_TTL_MS / 60000),
+    status: "login_started",
+    sessionId: session.id,
+    loginUrl: session.loginUrl,
+    expiresAt: session.expiresAt,
+    expiresInMinutes: 15,
   });
 }
 
 async function apiAuthStatus(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const exists = existsSync(AUTH_STATE_PATH);
-  let lastAuthenticated: string | null = null;
-  let ageHours: number | null = null;
-  let stale = false;
-
-  if (exists) {
-    const st = await stat(AUTH_STATE_PATH).catch(() => null);
-    if (st) {
-      lastAuthenticated = st.mtime.toISOString();
-      ageHours = Math.round((Date.now() - st.mtime.getTime()) / 3600000 * 10) / 10;
-      stale = Date.now() - st.mtime.getTime() > SESSION_MAX_AGE_MS;
-    }
-  }
-
-  sendJson(res, 200, {
-    connected: exists && !stale,
-    exists,
-    stale,
-    lastAuthenticated,
-    ageHours,
-  });
+  const auth = await getAuthStatus();
+  sendJson(res, 200, auth);
 }
 
-async function apiAuthCallback(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (req.method !== "POST") {
-    sendJson(res, 405, { error: "Method not allowed" });
+async function apiAuthLogout(_req: IncomingMessage, res: ServerResponse): Promise<void> {
+  await clearAuthState();
+  console.log("[auth] Session state cleared");
+  sendJson(res, 200, { status: "cleared", message: "Authenticated session removed." });
+}
+
+async function apiAuthScreenshot(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = (req.url ?? "").split("?")[0];
+  const parts = url.split("/");
+  const sessionId = parts[4];
+  if (!sessionId) {
+    sendJson(res, 400, { error: "Missing session ID" });
     return;
   }
+  const screenshot = getScreenshot(sessionId);
+  if (!screenshot) {
+    sendJson(res, 404, { error: "Screenshot not available" });
+    return;
+  }
+  res.writeHead(200, {
+    "content-type": "image/jpeg",
+    "content-length": screenshot.length,
+    "cache-control": "no-store",
+  });
+  res.end(screenshot);
+}
+
+async function apiAuthClick(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = (req.url ?? "").split("?")[0];
+  const parts = url.split("/");
+  const sessionId = parts[4];
 
   const body = await new Promise<string>((resolve, reject) => {
     let data = "";
@@ -607,48 +565,50 @@ async function apiAuthCallback(req: IncomingMessage, res: ServerResponse): Promi
     req.on("error", reject);
   });
 
-  let parsed: { token?: string; storageState?: string } = {};
+  let parsed: { x?: number; y?: number } = {};
   try {
     parsed = JSON.parse(body) as typeof parsed;
   } catch {
-    sendJson(res, 400, { error: "Invalid JSON body" });
+    sendJson(res, 400, { error: "Invalid JSON" });
     return;
   }
 
-  if (!parsed.token || !parsed.storageState) {
-    sendJson(res, 400, { error: "Missing token or storageState" });
+  if (typeof parsed.x !== "number" || typeof parsed.y !== "number") {
+    sendJson(res, 400, { error: "Missing x or y" });
     return;
   }
 
-  if (!validateToken(parsed.token)) {
-    sendJson(res, 403, { error: "Invalid or expired token" });
-    return;
-  }
-
-  // Decode, validate basic JSON structure, save. Never log contents.
-  let decoded: string;
-  try {
-    decoded = Buffer.from(parsed.storageState, "base64").toString("utf8");
-    // Validate it's valid JSON (Playwright storageState is JSON)
-    JSON.parse(decoded);
-  } catch {
-    sendJson(res, 400, { error: "Invalid storageState format" });
-    return;
-  }
-
-  await mkdir(DEBUG_DIR, { recursive: true });
-  await writeFile(AUTH_STATE_PATH, decoded, "utf8");
-  console.log("[auth] Session state saved (token consumed)");
-  sendJson(res, 200, { status: "saved", message: "Authenticated session stored." });
+  const ok = await forwardClick(sessionId, parsed.x, parsed.y);
+  sendJson(res, ok ? 200 : 404, { ok });
 }
 
-async function apiAuthLogout(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  if (existsSync(AUTH_STATE_PATH)) {
-    await writeFile(AUTH_STATE_PATH, "", "utf8");
-    // Truncate rather than unlink so the file handle pattern stays stable
+async function apiAuthType(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = (req.url ?? "").split("?")[0];
+  const parts = url.split("/");
+  const sessionId = parts[4];
+
+  const body = await new Promise<string>((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => { data += chunk; });
+    req.on("end", () => resolve(data));
+    req.on("error", reject);
+  });
+
+  let parsed: { text?: string; pressEnter?: boolean } = {};
+  try {
+    parsed = JSON.parse(body) as typeof parsed;
+  } catch {
+    sendJson(res, 400, { error: "Invalid JSON" });
+    return;
   }
-  console.log("[auth] Session state cleared");
-  sendJson(res, 200, { status: "cleared", message: "Authenticated session removed." });
+
+  if (!parsed.text) {
+    sendJson(res, 400, { error: "Missing text" });
+    return;
+  }
+
+  const ok = await forwardType(sessionId, parsed.text, parsed.pressEnter);
+  sendJson(res, ok ? 200 : 404, { ok });
 }
 
 async function routeApi(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -668,8 +628,10 @@ async function routeApi(req: IncomingMessage, res: ServerResponse): Promise<void
     if (url === "/api/monitor/log") return await apiMonitorLog(req, res);
     if (url === "/api/auth/login" && method === "POST") return await apiAuthLogin(req, res);
     if (url === "/api/auth/status" && method === "GET") return await apiAuthStatus(req, res);
-    if (url === "/api/auth/callback" && method === "POST") return await apiAuthCallback(req, res);
     if (url === "/api/auth/logout" && method === "POST") return await apiAuthLogout(req, res);
+    if (url.startsWith("/api/auth/session/") && url.endsWith("/screenshot")) return await apiAuthScreenshot(req, res);
+    if (url.startsWith("/api/auth/session/") && url.endsWith("/click")) return await apiAuthClick(req, res);
+    if (url.startsWith("/api/auth/session/") && url.endsWith("/type")) return await apiAuthType(req, res);
     sendJson(res, 404, { error: `Unknown API route: ${method} ${url}` });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -680,6 +642,28 @@ async function routeApi(req: IncomingMessage, res: ServerResponse): Promise<void
 
 const server = createServer(async (req, res) => {
   const url = req.url ?? "/";
+
+  // Remote browser session pages (before API/static routing)
+  if (url.startsWith("/auth/session/")) {
+    const parts = url.split("/");
+    const sessionId = parts[3]?.split("?")[0];
+    if (sessionId) {
+      const info = getSessionInfo(sessionId);
+      if (!info) {
+        sendText(res, 404, "Session not found or expired", "text/html; charset=utf-8");
+        return;
+      }
+      const loginRemotePath = join(DASHBOARD_DIR, "login-remote.html");
+      if (existsSync(loginRemotePath)) {
+        const html = await readFile(loginRemotePath, "utf8");
+        sendText(res, 200, html, "text/html; charset=utf-8");
+        return;
+      }
+    }
+    sendText(res, 404, "Session not found", "text/html; charset=utf-8");
+    return;
+  }
+
   if (url.startsWith("/api/")) {
     await routeApi(req, res);
     return;

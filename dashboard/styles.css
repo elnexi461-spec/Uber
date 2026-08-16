@@ -246,3 +246,5 @@ h2 { font-size: 18px; margin: 24px 0 10px; }
   font-weight: 500;
 }
 .secondary-btn:hover { background: #f9fafb; }
+
+.auth-url { margin-top: 12px; }

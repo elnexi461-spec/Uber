@@ -240,6 +240,7 @@ async function loadExports() {
 
 // ── Auth ────────────────────────────────────────────────────────────────────
 let authPollInterval = null;
+let currentSessionUrl = null;
 
 async function loadAuth() {
   try {
@@ -251,17 +252,21 @@ async function loadAuth() {
     const updateBtn = $("#auth-update-btn");
     const disconnectBtn = $("#auth-disconnect-btn");
     const instructions = $("#auth-instructions");
+    const urlBox = $("#auth-url");
 
-    if (a.connected) {
+    if (a.status === "authenticated") {
       indicator.textContent = "🟢";
-      text.textContent = "Uber Account Connected";
+      text.textContent = "Uber Session Connected";
       details.innerHTML = `Last authenticated: ${fmtTime(a.lastAuthenticated)} · Age: ${a.ageHours}h`;
       loginBtn.style.display = "none";
       updateBtn.style.display = "";
       disconnectBtn.style.display = "";
       instructions.style.display = "none";
       instructions.innerHTML = "";
-    } else if (a.exists && a.stale) {
+      urlBox.style.display = "none";
+      urlBox.innerHTML = "";
+      currentSessionUrl = null;
+    } else if (a.status === "expired") {
       indicator.textContent = "🟡";
       text.textContent = "Session Expired — Re-authentication Required";
       details.innerHTML = `Last authenticated: ${fmtTime(a.lastAuthenticated)} · Age: ${a.ageHours}h`;
@@ -269,7 +274,16 @@ async function loadAuth() {
       updateBtn.style.display = "none";
       disconnectBtn.style.display = "";
       instructions.style.display = "none";
-      instructions.innerHTML = "";
+      urlBox.style.display = "none";
+      currentSessionUrl = null;
+    } else if (a.status === "loginInProgress") {
+      indicator.textContent = "🟡";
+      text.textContent = "Login in Progress…";
+      details.innerHTML = "Remote browser session active. Complete login on your phone.";
+      loginBtn.style.display = "none";
+      updateBtn.style.display = "none";
+      disconnectBtn.style.display = "";
+      // Keep the URL box visible
     } else {
       indicator.textContent = "🔴";
       text.textContent = "Not Connected to Uber";
@@ -278,7 +292,9 @@ async function loadAuth() {
       updateBtn.style.display = "none";
       disconnectBtn.style.display = "none";
       instructions.style.display = "none";
-      instructions.innerHTML = "";
+      urlBox.style.display = "none";
+      urlBox.innerHTML = "";
+      currentSessionUrl = null;
     }
   } catch (err) {
     $("#auth-indicator").textContent = "⚪";
@@ -289,45 +305,51 @@ async function loadAuth() {
 
 async function startAuthFlow() {
   const instructions = $("#auth-instructions");
+  const urlBox = $("#auth-url");
   const loginBtn = $("#auth-login-btn");
   try {
     loginBtn.disabled = true;
     instructions.style.display = "";
-    instructions.innerHTML = `<p>Generating secure token…</p>`;
+    instructions.innerHTML = `<p>Starting remote browser session…</p>`;
 
     const res = await api("/api/auth/login", { method: "POST" });
+    currentSessionUrl = res.loginUrl;
 
     instructions.innerHTML = `
       <div class="login-instruction-box">
-        <p><strong>Complete Uber login on your local machine</strong></p>
-        <p>Render cannot display a browser window. Run this command in your local terminal:</p>
-        <pre class="code-block">${res.command}</pre>
-        <p>Or copy the token and server URL:</p>
-        <div class="token-row">
-          <input type="text" readonly value="${res.token}" class="token-input" onclick="this.select()">
-          <button class="copy-btn" data-copy="${res.token}">Copy Token</button>
-        </div>
-        <p class="muted">Token expires in ${res.expiresInMinutes} minutes.</p>
-        <p class="muted">This window will automatically detect when login is complete.</p>
+        <p><strong>Remote browser session started</strong></p>
+        <p>Open the temporary URL below on your phone to log into Uber:</p>
+        <p class="muted">Expires in ${res.expiresInMinutes} minutes</p>
       </div>
     `;
 
-    instructions.querySelector(".copy-btn")?.addEventListener("click", (e) => {
+    urlBox.style.display = "";
+    urlBox.innerHTML = `
+      <div class="token-row">
+        <input type="text" readonly value="${res.loginUrl}" class="token-input" onclick="this.select()">
+        <button class="copy-btn" data-copy="${res.loginUrl}">Copy URL</button>
+      </div>
+      <a href="${res.loginUrl}" target="_blank" class="primary-btn" style="display:inline-block;margin-top:10px;text-decoration:none;">Open Login</a>
+    `;
+
+    urlBox.querySelector(".copy-btn")?.addEventListener("click", (e) => {
       const val = e.target.dataset.copy;
       navigator.clipboard.writeText(val).then(() => {
         e.target.textContent = "Copied!";
-        setTimeout(() => (e.target.textContent = "Copy Token"), 2000);
+        setTimeout(() => (e.target.textContent = "Copy URL"), 2000);
       });
     });
+
+    loginBtn.disabled = false;
 
     if (authPollInterval) clearInterval(authPollInterval);
     authPollInterval = setInterval(async () => {
       await loadAuth();
       const status = await api("/api/auth/status");
-      if (status.connected) {
+      if (status.status === "authenticated") {
         clearInterval(authPollInterval);
         authPollInterval = null;
-        instructions.innerHTML = `<p class="green">✅ Uber account connected successfully!</p>`;
+        instructions.innerHTML = `<p class="green">✅ Uber session connected successfully!</p>`;
         setTimeout(() => { instructions.style.display = "none"; }, 5000);
       }
     }, 3000);
@@ -341,6 +363,7 @@ async function startAuthFlow() {
 async function disconnectAuth() {
   try {
     await api("/api/auth/logout", { method: "POST" });
+    currentSessionUrl = null;
     await loadAuth();
   } catch (err) {
     console.error(err);
