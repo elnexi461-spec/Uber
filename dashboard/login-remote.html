@@ -73,10 +73,18 @@
     // Click / touch forwarding
     async function sendClick(clientX, clientY) {
       const rect = img.getBoundingClientRect();
-      // Compute click position as percentage of displayed image
-      const px = ((clientX - rect.left) / rect.width) * 100;
-      const py = ((clientY - rect.top) / rect.height) * 100;
-      if (px < 0 || px > 100 || py < 0 || py > 100) return;
+       // The screenshot may be letterboxed by object-fit: contain. Remove
+       // that padding before mapping the phone tap to the backend viewport.
+       const backendWidth = 390;
+       const backendHeight = 844;
+       const scale = Math.min(rect.width / backendWidth, rect.height / backendHeight);
+       const imageWidth = backendWidth * scale;
+       const imageHeight = backendHeight * scale;
+       const imageLeft = rect.left + (rect.width - imageWidth) / 2;
+       const imageTop = rect.top + (rect.height - imageHeight) / 2;
+       const viewportX = (clientX - imageLeft) / scale;
+       const viewportY = (clientY - imageTop) / scale;
+       if (viewportX < 0 || viewportX > backendWidth || viewportY < 0 || viewportY > backendHeight) return;
 
       // Show tap indicator
       const indicator = document.createElement('div');
@@ -85,10 +93,6 @@
       indicator.style.top = (clientY - rect.top) + 'px';
       overlay.appendChild(indicator);
       setTimeout(() => indicator.remove(), 600);
-
-      // Backend viewport is 390x844
-      const viewportX = (px / 100) * 390;
-      const viewportY = (py / 100) * 844;
 
       await fetch(`/api/auth/session/${sessionId}/click`, {
         method: 'POST',

@@ -93,6 +93,14 @@ function sendText(res: ServerResponse, status: number, body: string, ct = "text/
   res.end(body);
 }
 
+function getPublicOrigin(req: IncomingMessage): string {
+  const forwardedProto = String(req.headers["x-forwarded-proto"] ?? "").split(",")[0].trim();
+  const forwardedHost = String(req.headers["x-forwarded-host"] ?? "").split(",")[0].trim();
+  const host = forwardedHost || req.headers.host || process.env["REPLIT_DEV_DOMAIN"] || `${HOST}:${PORT}`;
+  const protocol = forwardedProto || ((req.socket as { encrypted?: boolean }).encrypted ? "https" : "http");
+  return `${protocol}://${host}`;
+}
+
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -523,7 +531,7 @@ async function apiMonitorLog(_req: IncomingMessage, res: ServerResponse): Promis
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function apiAuthLogin(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const serverUrl = process.env["RENDER_EXTERNAL_URL"] ?? `http://${HOST}:${PORT}`;
+  const serverUrl = getPublicOrigin(_req);
   const session = await createLoginSession(serverUrl);
   sendJson(res, 200, {
     status: "login_started",
@@ -648,7 +656,8 @@ async function routeApi(req: IncomingMessage, res: ServerResponse): Promise<void
     sendJson(res, 404, { error: `Unknown API route: ${method} ${url}` });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[api] ${method} ${url} error:`, msg);
+    const safeUrl = url.replace(/(\/api\/auth\/session\/)[^/]+/, "$1[redacted]");
+    console.error(`[api] ${method} ${safeUrl} error:`, msg);
     sendJson(res, 500, { error: "Internal server error", message: msg });
   }
 }

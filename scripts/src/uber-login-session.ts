@@ -18,13 +18,11 @@ import { mkdir, writeFile, stat, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isLoggedIn, saveAuthState } from "./uber-fare-extract.js";
+import { AUTH_STATE_PATH, isLoggedIn, saveAuthState } from "./uber-fare-extract.js";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const PROJECT_DIR = dirname(dirname(SCRIPT_DIR));
 const DEBUG_DIR = join(PROJECT_DIR, "debug");
-const AUTH_STATE_PATH = join(DEBUG_DIR, "uber-auth-state.json");
-
 const SESSION_TTL_MS = 15 * 60 * 1000;        // 15 minutes
 const SCREENSHOT_INTERVAL_MS = 600;           // 600ms
 const AUTH_CHECK_INTERVAL_MS = 2500;          // 2.5s
