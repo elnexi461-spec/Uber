@@ -1,0 +1,1 @@
+- [Workspace routing](workspace-routing.md) — More-specific artifact paths can shadow a root app, so legacy service paths must stay off product API prefixes.

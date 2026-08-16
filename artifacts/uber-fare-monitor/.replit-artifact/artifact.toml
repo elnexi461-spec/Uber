@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Uber Fare Monitor"
+description = "A deployable dashboard for the existing Uber fare extraction and monitoring pipeline, preserving the repository's static frontend, API, exports, and authenticated batch controls."
+version = "1.0.0"
+id = "artifacts/uber-fare-monitor"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23451
+
+[services.development]
+run = "pnpm --filter @workspace/uber-fare-monitor run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/scripts", "run", "typecheck" ]
+
+[services.production.run]
+args = [ "pnpm", "--filter", "@workspace/scripts", "run", "start" ]
+
+[services.production.run.env]
+NODE_ENV = "production"
+
+[services.env]
+PORT = "23451"
+BASE_PATH = "/"

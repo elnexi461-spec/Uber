@@ -47,3 +47,23 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Runtime network/session captures — never commit these
+/debug/network-log.json
+/debug/uber-responses/
+/debug/uber-auth-state.json
+/debug/uber-fares.json
+/debug/uber-ride-selection.png
+/debug/89-field-coverage.json
+/debug/hong-kong-report.json
+/debug/uber-fares-dom.txt
+
+# Uber monitor operational artifacts (transient; may contain fare snapshots)
+/debug/monitor.log
+/debug/monitor-checkpoint.json
+/debug/monitor-cache.json
+/debug/monitor-metrics.json
+/debug/uber-responses/batch/
+
+# Dashboard routes input (transient)
+/debug/monitor-routes-input.json

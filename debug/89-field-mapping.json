@@ -1,0 +1,625 @@
+[
+  {
+    "column": "accountid",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in anonymous capture"
+  },
+  {
+    "column": "pullTime",
+    "status": "DERIVED",
+    "source": "execution timestamp",
+    "sourcePath": "new Date().toISOString()",
+    "transformation": "Current UTC timestamp at extraction time"
+  },
+  {
+    "column": "executeTime",
+    "status": "DERIVED",
+    "source": "execution timestamp",
+    "sourcePath": "new Date().toISOString()",
+    "transformation": "Same as pullTime"
+  },
+  {
+    "column": "fare",
+    "status": "AVAILABLE",
+    "source": "fares[].fare",
+    "sourcePath": "fares[0].fare",
+    "transformation": "Empty string in anonymous flow; preserved as-is"
+  },
+  {
+    "column": "description",
+    "status": "AVAILABLE",
+    "source": "product.description",
+    "sourcePath": "products.tiers[].products[].description",
+    "transformation": "Product description from GraphQL"
+  },
+  {
+    "column": "country",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "No country field in anonymous capture"
+  },
+  {
+    "column": "bjHour",
+    "status": "DERIVED",
+    "source": "execution timestamp",
+    "sourcePath": "new Date().getUTCHours() + 8",
+    "transformation": "Beijing hour (UTC+8, no DST)"
+  },
+  {
+    "column": "bjMinute",
+    "status": "DERIVED",
+    "source": "execution timestamp",
+    "sourcePath": "new Date().getUTCMinutes()",
+    "transformation": "Beijing minute"
+  },
+  {
+    "column": "executeWeekday",
+    "status": "DERIVED",
+    "source": "execution timestamp",
+    "sourcePath": "new Date().getUTCDay()",
+    "transformation": "Weekday in Beijing time (0=Sun)"
+  },
+  {
+    "column": "dayType",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "flng",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.pickup.lng",
+    "transformation": "Pickup longitude"
+  },
+  {
+    "column": "flat",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.pickup.lat",
+    "transformation": "Pickup latitude"
+  },
+  {
+    "column": "tlng",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.destination.lng",
+    "transformation": "Destination longitude"
+  },
+  {
+    "column": "tlat",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.destination.lat",
+    "transformation": "Destination latitude"
+  },
+  {
+    "column": "timeSeason",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "batchId",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "routeId",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "taskId",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.taskId",
+    "transformation": "Task identifier from input"
+  },
+  {
+    "column": "currencyCode",
+    "status": "AVAILABLE",
+    "source": "fares[].currencyCode / product.currencyCode",
+    "sourcePath": "fares[0].currencyCode",
+    "transformation": "Empty string in anonymous flow"
+  },
+  {
+    "column": "destinationLat",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.destination.lat",
+    "transformation": "Destination latitude"
+  },
+  {
+    "column": "destinationLng",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.destination.lng",
+    "transformation": "Destination longitude"
+  },
+  {
+    "column": "originLat",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.pickup.lat",
+    "transformation": "Pickup latitude"
+  },
+  {
+    "column": "originLng",
+    "status": "DERIVED",
+    "source": "route config",
+    "sourcePath": "route.pickup.lng",
+    "transformation": "Pickup longitude"
+  },
+  {
+    "column": "baseFlng",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "baseFlat",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "baseTlng",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "baseTlat",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "vehicleViewId",
+    "status": "AVAILABLE",
+    "source": "product.vehicleViewUuid / products.defaultVVID",
+    "sourcePath": "products.defaultVVID",
+    "transformation": "Null in anonymous; fallback to defaultVVID=9697"
+  },
+  {
+    "column": "surgeMultiplier",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "unmodifiedDistance",
+    "status": "AVAILABLE",
+    "source": "navigation.distance",
+    "sourcePath": "navigation[0].distance",
+    "transformation": "11572 meters from navigation response"
+  },
+  {
+    "column": "formattedFare",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "accessibilityText",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "defaultText",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "pricingTemplatesDefaultText",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "magnitude",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "unit",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "textDisplayed",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "rankedSecondaryFareAccessibilityText",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "styledPrimaryFareMagnitude",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "styledPrimaryFareAccessibilityText",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "hourlyTiers",
+    "status": "AVAILABLE",
+    "source": "products.hourlyTiersWithMinimumFare",
+    "sourcePath": "data.products.hourlyTiersWithMinimumFare",
+    "transformation": "Null in captured response"
+  },
+  {
+    "column": "estimatedTripTime",
+    "status": "AVAILABLE",
+    "source": "product.estimatedTripTime",
+    "sourcePath": "products.tiers[].products[].estimatedTripTime",
+    "transformation": "0 in captured response"
+  },
+  {
+    "column": "estimateRequestTime",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "etdDisplayString",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "estimatedSoloOnTripTime",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "packageVariantsVehicleViewId",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "sortWeight",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "vehicleViewsOrderStr",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "defaultVehicleViewId",
+    "status": "AVAILABLE",
+    "source": "products.defaultVVID",
+    "sourcePath": "data.products.defaultVVID",
+    "transformation": "9697 in captured response"
+  },
+  {
+    "column": "title",
+    "status": "AVAILABLE",
+    "source": "tier.title",
+    "sourcePath": "products.tiers[].title",
+    "transformation": "Tier title (Popular, Economy, Premium, More)"
+  },
+  {
+    "column": "preAdjustmentMagnitude",
+    "status": "AVAILABLE",
+    "source": "product.preAdjustmentValue",
+    "sourcePath": "products.tiers[].products[].preAdjustmentValue",
+    "transformation": "Empty string in anonymous flow"
+  },
+  {
+    "column": "adjustmentMagnitude",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "postAdjustmentMagnitude",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "discountPrimaryMagnitude",
+    "status": "AVAILABLE",
+    "source": "fares[].discountPrimary",
+    "sourcePath": "fares[0].discountPrimary",
+    "transformation": "Empty string in anonymous flow"
+  },
+  {
+    "column": "unmodifiedEta",
+    "status": "AVAILABLE",
+    "source": "navigation.eta",
+    "sourcePath": "navigation[0].eta",
+    "transformation": "964 seconds from navigation response"
+  },
+  {
+    "column": "predictEta",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "predictDistance",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "predictHaversineDistance",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "predictEstimatedOriginLatitude",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "predictEstimatedOriginLongitude",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "predictEstimatedDestinationLatitude",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "predictEstimatedDestinationLongitude",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "polyline",
+    "status": "AVAILABLE",
+    "source": "navigation.polyline",
+    "sourcePath": "navigation[0].polyline",
+    "transformation": "636-character encoded polyline"
+  },
+  {
+    "column": "etaString",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "etaStringShort",
+    "status": "AVAILABLE",
+    "source": "product.etaStringShort",
+    "sourcePath": "products.tiers[].products[].etaStringShort",
+    "transformation": "Empty string in anonymous flow"
+  },
+  {
+    "column": "minEta",
+    "status": "AVAILABLE",
+    "source": "product.etaInMin",
+    "sourcePath": "products.tiers[].products[].etaInMin",
+    "transformation": "Null in captured response"
+  },
+  {
+    "column": "averageEta",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "baseValue",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "distanceUnit",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "type",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "perDistanceUnitValue",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "perMinuteValue",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "minimumValue",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "cancellationValue",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "safeRidesFeeValue",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "perWaitMinuteValue",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "allowFareEstimate",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "allowedToSurge",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "shouldFetchUpfrontFare",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "upfrontPriceEnabled",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "estimatedTolls",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "fareLineItems",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "maxFare",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "minFare",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "isFareLineSuccess",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "fenceNameFrom",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "discountedPrice",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "header",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  },
+  {
+    "column": "screenshotBase64",
+    "status": "UNAVAILABLE",
+    "source": "N/A",
+    "sourcePath": "N/A",
+    "transformation": "Not present in source"
+  }
+]

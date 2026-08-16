@@ -1,0 +1,261 @@
+{
+  "accountid": {
+    "csv_column": "accountid",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "pullTime": {
+    "csv_column": "pullTime",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "executeTime": {
+    "csv_column": "executeTime",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "fare": {
+    "csv_column": "fare",
+    "json_path": "$.data.products.tiers[0].products[0].fares[0].fare",
+    "source": "direct",
+    "example_value": "",
+    "notes": "Matched response key \"fare\"; source value is preserved without transformation."
+  },
+  "description": {
+    "csv_column": "description",
+    "json_path": "$.data.products.tiers[0].products[0].description",
+    "source": "direct",
+    "example_value": "Taxi",
+    "notes": "Matched response key \"description\"; source value is preserved without transformation."
+  },
+  "country": {
+    "csv_column": "country",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "currencyCode": {
+    "csv_column": "currencyCode",
+    "json_path": "$.data.products.tiers[0].products[0].currencyCode",
+    "source": "direct",
+    "example_value": "",
+    "notes": "Matched response key \"currencyCode\"; source value is preserved without transformation."
+  },
+  "flng": {
+    "csv_column": "flng",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "flat": {
+    "csv_column": "flat",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "tlng": {
+    "csv_column": "tlng",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "tlat": {
+    "csv_column": "tlat",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "originLat": {
+    "csv_column": "originLat",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "originLng": {
+    "csv_column": "originLng",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "destinationLat": {
+    "csv_column": "destinationLat",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "destinationLng": {
+    "csv_column": "destinationLng",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "vehicleViewId": {
+    "csv_column": "vehicleViewId",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "surgeMultiplier": {
+    "csv_column": "surgeMultiplier",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "formattedFare": {
+    "csv_column": "formattedFare",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "estimatedTripTime": {
+    "csv_column": "estimatedTripTime",
+    "json_path": "$.data.products.tiers[0].products[0].estimatedTripTime",
+    "source": "direct",
+    "example_value": 0,
+    "notes": "Matched response key \"estimatedTripTime\"; source value is preserved without transformation."
+  },
+  "etaString": {
+    "csv_column": "etaString",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "predictDistance": {
+    "csv_column": "predictDistance",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "predictEta": {
+    "csv_column": "predictEta",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "discountPrimaryMagnitude": {
+    "csv_column": "discountPrimaryMagnitude",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "discountedPrice": {
+    "csv_column": "discountedPrice",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "fareLineItems": {
+    "csv_column": "fareLineItems",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "baseValue": {
+    "csv_column": "baseValue",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "perDistanceUnitValue": {
+    "csv_column": "perDistanceUnitValue",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "perMinuteValue": {
+    "csv_column": "perMinuteValue",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "minimumValue": {
+    "csv_column": "minimumValue",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "minFare": {
+    "csv_column": "minFare",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "maxFare": {
+    "csv_column": "maxFare",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "polyline": {
+    "csv_column": "polyline",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "title": {
+    "csv_column": "title",
+    "json_path": "$.data.products.tiers[0].title",
+    "source": "direct",
+    "example_value": "Popular",
+    "notes": "Matched response key \"title\"; source value is preserved without transformation."
+  },
+  "header": {
+    "csv_column": "header",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "accessibilityText": {
+    "csv_column": "accessibilityText",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "routeId": {
+    "csv_column": "routeId",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  },
+  "taskId": {
+    "csv_column": "taskId",
+    "json_path": "",
+    "source": "missing",
+    "example_value": null,
+    "notes": "No matching field was found in the verified JSON response."
+  }
+}

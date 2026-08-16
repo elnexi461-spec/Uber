@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uber Fare Monitor — Dashboard</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Uber Fare Monitor</div>
+    <nav class="nav">
+      <button data-view="dashboard" class="nav-btn active">Dashboard</button>
+      <button data-view="routes" class="nav-btn">Routes</button>
+      <button data-view="prices" class="nav-btn">Prices</button>
+      <button data-view="jobs" class="nav-btn">Jobs</button>
+      <button data-view="verification" class="nav-btn">Verification</button>
+      <button data-view="exports" class="nav-btn">Exports</button>
+    </nav>
+    <div id="health-badge" class="health-badge">…</div>
+  </header>
+
+  <main class="content">
+    <!-- Dashboard -->
+    <section id="view-dashboard" class="view active">
+      <h1>Dashboard</h1>
+
+      <!-- Auth Card -->
+      <div class="auth-card" id="auth-card">
+        <div class="auth-status" id="auth-status">
+          <span class="auth-indicator" id="auth-indicator">⚪</span>
+          <span class="auth-text" id="auth-text">Checking Uber connection…</span>
+        </div>
+        <div class="auth-details" id="auth-details"></div>
+        <div class="auth-actions" id="auth-actions">
+          <button id="auth-login-btn" class="primary-btn">Login to Uber</button>
+          <button id="auth-update-btn" class="secondary-btn" style="display:none">Update Session</button>
+          <button id="auth-disconnect-btn" class="danger-btn" style="display:none">Disconnect</button>
+        </div>
+        <div class="auth-instructions" id="auth-instructions" style="display:none"></div>
+        <div class="auth-url" id="auth-url" style="display:none"></div>
+      </div>
+
+      <div class="metrics-grid" id="metrics-grid"></div>
+      <div class="cards-row" id="session-card"></div>
+      <h2>Recent Log</h2>
+      <pre id="monitor-log" class="log-box"></pre>
+    </section>
+
+    <!-- Routes -->
+    <section id="view-routes" class="view">
+      <h1>Routes</h1>
+      <p class="muted">Routes known to the system (pipeline output, checkpoint jobs, and collected cache entries).</p>
+      <table class="data-table"><thead><tr><th>ID</th><th>Pickup</th><th>Destination</th><th>Coords</th><th>Source</th><th>Collected</th><th>Status</th></tr></thead>
+        <tbody id="routes-tbody"></tbody>
+      </table>
+    </section>
+
+    <!-- Prices -->
+    <section id="view-prices" class="view">
+      <h1>Prices</h1>
+      <p class="muted">Real extracted fares from the authenticated session (89-column pipeline + monitor cache).</p>
+      <div id="route-info" class="route-info"></div>
+      <table class="data-table"><thead><tr><th>Product</th><th>Fare</th><th>Currency</th><th>Surge</th><th>ETA</th><th>Trip Time</th><th>Source</th></tr></thead>
+        <tbody id="prices-tbody"></tbody>
+      </table>
+    </section>
+
+    <!-- Jobs -->
+    <section id="view-jobs" class="view">
+      <h1>Jobs</h1>
+      <div class="actions-row">
+        <button id="run-batch-btn" class="primary-btn">Run Batch (HK route)</button>
+        <span id="run-status" class="muted"></span>
+      </div>
+      <div id="jobs-metrics" class="metrics-grid"></div>
+      <table class="data-table"><thead><tr><th>Route ID</th><th>Pickup</th><th>Destination</th><th>Status</th><th>Attempts</th><th>Completed</th><th>Error</th></tr></thead>
+        <tbody id="jobs-tbody"></tbody>
+      </table>
+    </section>
+
+    <!-- Verification -->
+    <section id="view-verification" class="view">
+      <h1>Verification</h1>
+      <p class="muted">Extracted fares compared against known manual reference fares (5% tolerance for live drift).</p>
+      <div id="verification-summary" class="metrics-grid"></div>
+      <table class="data-table"><thead><tr><th>Product</th><th>Expected</th><th>Extracted</th><th>Delta</th><th>Status</th></tr></thead>
+        <tbody id="verification-tbody"></tbody>
+      </table>
+    </section>
+
+    <!-- Exports -->
+    <section id="view-exports" class="view">
+      <h1>Exports</h1>
+      <p class="muted">Download pipeline outputs and operational artifacts. Session state is never exportable.</p>
+      <table class="data-table"><thead><tr><th>Name</th><th>File</th><th>Size</th><th>Modified</th><th></th></tr></thead>
+        <tbody id="exports-tbody"></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

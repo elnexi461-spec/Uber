@@ -1,0 +1,238 @@
+{
+  "route": {
+    "taskId": "hk_202606192058594097",
+    "pickupName": "沙田醫院",
+    "destinationName": "南方花園",
+    "pickup": {
+      "lat": 22.395771,
+      "lng": 114.217333
+    },
+    "destination": {
+      "lat": 22.325528,
+      "lng": 114.19081
+    }
+  },
+  "responseFiles": 17,
+  "productResponseFiles": [
+    {
+      "file": "00026-go-graphql.json",
+      "productObjects": 26
+    }
+  ],
+  "uniqueProducts": 13,
+  "productsWithFare": 0,
+  "productsWithCurrency": 0,
+  "navigationAvailable": true,
+  "navigation": {
+    "sourceFile": "00027-go-custom-api-navigation-route.json",
+    "distanceMeters": 11572,
+    "durationSeconds": 964,
+    "etaSeconds": 964,
+    "polyline": "equgCwdbxT?eAAIEIGAw@C]AyAASFMVTAAzAt@r@@FAJaAu@q@]SZrDfCjFbCNAFDb@LrA^bCZz@Rr@`@pAx@v@ThAFZFVJjAZtAPrA@h@?vAGlD[vCaAnGgCzA[VCVEjBKl@?vBDrCZzDh@tAJlBPtBTlAFxBR|BPvALtBDpCCx@CbAMbB_@pAa@n@[`@Y~@u@t@aALQz@oAz@kAn@q@`@]z@k@xBcAt@[|Ai@tB_@vAMdCMfC@xD^li@tIly@rM`e@rHzDt@pDz@nF`BvDjA`Cz@`ClAzFtCt@^hDdBt@\\h@VhAh@`@TvAv@NHTJpA`@\\HbAJpADx@?hCWXEhA]TGd@QlHkCrFeBPEj@IJCxAGzBFXEn@QNIZUPg@Dm@CQK]a@YSIUAM@UBa@Pw@f@]Z[V_@Zo@ZiAjAc@j@KNaAtBQ^Md@EZCRAFE^AJA\\@nAJ~@F^bAtDFTbAtDPl@J`@d@fBh@rBr@hCZv@DHFZNZZh@|A~ALPVVJRZn@J`@H`@FLJTt@z@DFtFnFFFj@P`@X\\b@N\\p@dAhAhA`BfB~AtBJNVXRj@HPHTTz@Jv@XbFF^V`D\\hDRtA@RFl@c@?iCCyDGCf@?b@DJAPC~DAR?VEH?f@A|@G~AAX~DHBiJ",
+    "legs": [
+      {
+        "distanceMeters": 11572.045578078603,
+        "durationSeconds": 964
+      }
+    ]
+  },
+  "defaultVVID": "9697",
+  "hourlyTiers": null,
+  "products": [
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "20017011",
+      "productUuid": "f71e1a18-d82a-4673-a0bc-778f104ba3ca",
+      "vehicleViewUuid": "9697",
+      "displayName": "Taxi",
+      "description": "Taxi",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Popular"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "20022799",
+      "productUuid": "02044bfa-bce0-4b82-8450-12ab57cf2ca2",
+      "vehicleViewUuid": "9697",
+      "displayName": "Comfort",
+      "description": "Comfort",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Popular"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "20069697",
+      "productUuid": "4e45b8a2-ee2c-4c6c-b904-7943a88e935d",
+      "vehicleViewUuid": "9697",
+      "displayName": "Lantau Taxi",
+      "description": "Lantau Taxi",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Popular"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "9697",
+      "productUuid": "de141370-356c-49ae-a179-0c6730989678",
+      "vehicleViewUuid": "9697",
+      "displayName": "UberX",
+      "description": "UberX",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Economy"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "712",
+      "productUuid": "1e8cad6d-9a3c-44e9-a2a5-8b93dfcf7d62",
+      "vehicleViewUuid": "9697",
+      "displayName": "UberXL",
+      "description": "UberXL",
+      "capacity": 6,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Economy"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "20068331",
+      "productUuid": "39fc1096-b2a0-4632-a659-2648559b6a25",
+      "vehicleViewUuid": "9697",
+      "displayName": "UberXXL",
+      "description": "UberXXL",
+      "capacity": 6,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Economy"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "30101833",
+      "productUuid": "94cd8c91-178a-4322-8374-3beaca6bda4f",
+      "vehicleViewUuid": "9697",
+      "displayName": "Car Seat (1-7yo)",
+      "description": "Car Seat (1-7yo)",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Economy"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "30102615",
+      "productUuid": "98a02f83-b811-4f20-9286-802b3d98754e",
+      "vehicleViewUuid": "9697",
+      "displayName": "Electric",
+      "description": "Electric",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Economy"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "30101835",
+      "productUuid": "dc141204-69c8-4d43-812a-b1675367395d",
+      "vehicleViewUuid": "9697",
+      "displayName": "Car Seat (4-7yo)",
+      "description": "Car Seat (4-7yo)",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Economy"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "30119761",
+      "productUuid": "d54e12be-0b30-4d12-a450-4e247e46a3b3",
+      "vehicleViewUuid": "9697",
+      "displayName": "Elite",
+      "description": "Elite",
+      "capacity": 6,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "Premium"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "20022551",
+      "productUuid": "f865bb49-9bc4-4946-bfa9-f12d6266f75a",
+      "vehicleViewUuid": "9697",
+      "displayName": "Uber Pet",
+      "description": "Uber Pet",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "More"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "715",
+      "productUuid": "1adacb18-e4eb-499c-84ef-43027fdb599b",
+      "vehicleViewUuid": "9697",
+      "displayName": "Black",
+      "description": "Black",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "More"
+    },
+    {
+      "sourceFile": "00026-go-graphql.json",
+      "productId": "12343",
+      "productUuid": "d5ac19eb-2e8d-4ffe-af4b-f1540ec1b645",
+      "vehicleViewUuid": "9697",
+      "displayName": "Assist",
+      "description": "Assist",
+      "capacity": 4,
+      "available": true,
+      "fare": "",
+      "fareAmountE5": null,
+      "currencyCode": "",
+      "hasPromo": false,
+      "tierTitle": "More"
+    }
+  ]
+}

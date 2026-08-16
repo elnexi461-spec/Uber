@@ -5,10 +5,23 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "uber-diagnostic": "tsx ./src/uber-autonomous.ts",
+    "uber-extract": "cd .. && tsx ./scripts/src/uber-public-extract.ts",
+    "uber-estimates": "tsx ./src/uber-estimates-api.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "uber-test-hk": "cd .. && tsx ./scripts/src/uber-test-hk.ts",
+    "uber-fare-login": "tsx ./src/uber-fare-extract.ts --login",
+    "uber-fare-extract": "tsx ./src/uber-fare-extract.ts",
+    "uber-monitor": "tsx ./src/uber-monitor.ts",
+    "server": "tsx ./src/server.ts",
+    "start": "tsx ./src/server.ts",
+    "test": "tsx --test ./src/__tests__/*.test.ts"
   },
   "devDependencies": {
-    "@types/node": "catalog:",
-    "tsx": "catalog:"
+    "@types/node": "^20.0.0",
+    "tsx": "^4.21.0"
+  },
+  "dependencies": {
+    "playwright": "^1.62.1"
   }
 }
