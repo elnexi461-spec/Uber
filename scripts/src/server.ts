@@ -13,7 +13,7 @@
  * Security: never reads or serves debug/uber-auth-state.json (session/cookies).
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFile, writeFile, stat, readdir } from "node:fs/promises";
+import { readFile, writeFile, stat, readdir, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname, extname, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,6 +25,11 @@ const OUTPUT_DIR = join(PROJECT_DIR, "output");
 const DEBUG_DIR = join(PROJECT_DIR, "debug");
 const DASHBOARD_DIR = join(PROJECT_DIR, "dashboard");
 const SCRIPTS_DIR = join(PROJECT_DIR, "scripts");
+
+// Same path as AUTH_STATE_PATH in uber-fare-extract.ts (kept unchanged).
+// The file is gitignored and never committed; on Render it is provisioned at
+// startup from the UBER_AUTH_STATE_B64 secret (base64-encoded storage state).
+const AUTH_STATE_PATH = join(DEBUG_DIR, "uber-auth-state.json");
 
 const PORT = Number(process.env["PORT"] ?? 3000);
 const HOST = process.env["HOST"] ?? "0.0.0.0";
@@ -39,6 +44,48 @@ const FILES = {
   fares: join(DEBUG_DIR, "uber-fares.json"),
   monitorLog: join(DEBUG_DIR, "monitor.log"),
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth session provisioning (Render: env var -> debug/uber-auth-state.json)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * How the authenticated Playwright session (debug/uber-auth-state.json) became
+ * available. Reported by /api/health so operators can see whether the Render
+ * secret was applied. Does NOT expose any session contents.
+ */
+type AuthSource = "provisioned" | "file" | "none";
+let authSessionSource: AuthSource = "none";
+
+/**
+ * Recreate debug/uber-auth-state.json at startup from the UBER_AUTH_STATE_B64
+ * secret (base64-encoded Playwright storage-state JSON). This lets Render inject
+ * the authenticated session without committing credentials. No-op if the secret
+ * is absent and the file already exists (local dev). Never exposes contents.
+ *
+ * Runs before any monitor batch so uber-monitor.ts (which reads AUTH_STATE_PATH
+ * unchanged) finds a valid session.
+ */
+async function provisionAuthState(): Promise<void> {
+  const b64 = process.env["UBER_AUTH_STATE_B64"];
+  if (b64 && b64.trim().length > 0) {
+    try {
+      const json = Buffer.from(b64, "base64").toString("utf8");
+      const parsed = JSON.parse(json) as unknown;
+      if (!parsed || typeof parsed !== "object" || !("cookies" in parsed)) {
+        throw new Error("decoded JSON is not a Playwright storage state (missing 'cookies')");
+      }
+      await mkdir(DEBUG_DIR, { recursive: true });
+      await writeFile(AUTH_STATE_PATH, json, "utf8");
+      authSessionSource = "provisioned";
+      console.log(`Auth session provisioned from UBER_AUTH_STATE_B64 -> ${AUTH_STATE_PATH}`);
+      return;
+    } catch (err) {
+      console.error(`UBER_AUTH_STATE_B64 present but invalid: ${(err as Error).message}; falling back to file.`);
+    }
+  }
+  authSessionSource = existsSync(AUTH_STATE_PATH) ? "file" : "none";
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -180,7 +227,7 @@ let runningJob: {
 } | null = null;
 
 async function apiHealth(_req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const authed = existsSync(join(DEBUG_DIR, "uber-auth-state.json"));
+  const authed = existsSync(AUTH_STATE_PATH);
   const products = existsSync(FILES.productsJson);
 
   // Runtime capability checks
@@ -193,6 +240,9 @@ async function apiHealth(_req: IncomingMessage, res: ServerResponse): Promise<vo
     status: "ok",
     time: new Date().toISOString(),
     authenticatedSession: authed,
+    authSessionSource: authSessionSource,
+    authSessionProvisionedFromSecret: authSessionSource === "provisioned",
+    authSessionFilePresent: authSessionSource === "file" || (authSessionSource === "provisioned"),
     hasPipelineOutput: products,
     runtime: {
       tsxExists: existsSync(tsxPath),
@@ -529,10 +579,18 @@ const server = createServer(async (req, res) => {
   await serveStatic(req, res);
 });
 
-server.listen(PORT, HOST, () => {
-  console.log(`Uber dashboard server listening on http://${HOST}:${PORT}`);
-  console.log(`  API:      http://${HOST}:${PORT}/api/health`);
-  console.log(`  Dashboard: http://${HOST}:${PORT}/`);
+// Provision the auth session from the UBER_AUTH_STATE_B64 secret (if set) before
+// serving, so any subsequent monitor batch finds debug/uber-auth-state.json.
+provisionAuthState().catch((err) => {
+  console.error(`Auth provisioning failed: ${(err as Error).message}`);
+  authSessionSource = existsSync(AUTH_STATE_PATH) ? "file" : "none";
+}).finally(() => {
+  server.listen(PORT, HOST, () => {
+    console.log(`Uber dashboard server listening on http://${HOST}:${PORT}`);
+    console.log(`  API:      http://${HOST}:${PORT}/api/health`);
+    console.log(`  Dashboard: http://${HOST}:${PORT}/`);
+    console.log(`  Auth:     ${authSessionSource}`);
+  });
 });
 
 export { server };

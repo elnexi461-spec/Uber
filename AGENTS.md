@@ -125,3 +125,12 @@ Zero-new-dependency Node.js HTTP server reusing existing extraction engine.
 - npm: `pnpm server` or `pnpm start`
 - Tested locally: all 6 views populate, all 9 endpoints return real data,
   batch-run triggers monitor, 89-col CSV downloads with 89 columns, auth-state blocked (403).
+
+## Auth session provisioning (Render/Railway secret)
+`debug/uber-auth-state.json` (gitignored, never committed — live credentials) is
+recreated at server startup from the `UBER_AUTH_STATE_B64` env secret (base64
+Playwright storage state). Validated (must have `cookies`), written before any
+monitor batch. Falls back to existing file if secret absent (local dev).
+- `/api/health` reports `authSessionSource`: `provisioned` | `file` | `none`
+- Extractor, monitor, AUTH_STATE_PATH, checkpointing, caching, 89-col pipeline: UNCHANGED
+- Tested: secret provisioning recreates file byte-identical; invalid secret falls back gracefully.

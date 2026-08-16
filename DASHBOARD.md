@@ -36,11 +36,31 @@ The `nixpacks.toml` at the repo root configures Railway to:
 
 Railway injects `PORT` automatically; the server binds to `0.0.0.0:$PORT`.
 
+## Authenticated session (Render/Railway secret)
+
+The authenticated Playwright session (`debug/uber-auth-state.json`) is gitignored
+and **never committed** — it contains live credentials. On Render/Railway, supply
+it via the `UBER_AUTH_STATE_B64` environment variable/secret:
+
+1. Locally, base64-encode the existing storage state:
+   ```bash
+   base64 -w0 debug/uber-auth-state.json
+   ```
+2. In the Render/Railway dashboard, add a secret `UBER_AUTH_STATE_B64` with that
+   value.
+
+At startup, the server decodes the secret, validates it is a Playwright storage
+state (has `cookies`), and recreates `debug/uber-auth-state.json` **before any
+monitor batch runs**. The extractor, monitor, `AUTH_STATE_PATH`, checkpointing,
+caching, and 89-column pipeline are all unchanged. If the secret is absent, the
+server falls back to an existing file (local dev). `/api/health` reports the
+session source (`provisioned` | `file` | `none`).
+
 ## API endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/health` | Healthcheck (Railway) — reports auth session + Playwright presence |
+| GET | `/api/health` | Healthcheck (Railway) — reports auth session source (`provisioned`/`file`/`none`) + Playwright presence |
 | GET | `/api/dashboard` | Summary metrics (monitor + pipeline + verification) |
 | GET | `/api/routes` | Known routes (pipeline + checkpoint + cache) |
 | GET | `/api/prices` | Real extracted fares (89-col pipeline + monitor cache) |
